@@ -1,0 +1,11 @@
+node_modules
+dist
+dist-ssr
+.vite
+.DS_Store
+*.local
+.claude/
+*.tsbuildinfo
+# Compiled outputs from tsc -b of the vite.config
+vite.config.js
+vite.config.d.ts

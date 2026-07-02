@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%237c5cff'%3E%3Cpath d='M12 2 3 6v6c0 5 3.8 9.4 9 10 5.2-.6 9-5 9-10V6l-9-4Z'/%3E%3C/svg%3E" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="preconnect" href="https://rsms.me/" />
+    <link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
+    <title>Financial Tracker</title>
+    <script>
+      // Apply the saved theme class before React mounts to avoid a flash of the
+      // wrong palette. Reads the same localStorage entry the app uses.
+      (function () {
+        try {
+          var raw = localStorage.getItem('financial-tracker::v1');
+          var pref = 'auto';
+          if (raw) {
+            var parsed = JSON.parse(raw);
+            if (parsed && (parsed.theme === 'light' || parsed.theme === 'dark' || parsed.theme === 'auto')) {
+              pref = parsed.theme;
+            }
+          }
+          var isDark =
+            pref === 'dark' ||
+            (pref === 'auto' &&
+              window.matchMedia &&
+              window.matchMedia('(prefers-color-scheme: dark)').matches);
+          if (isDark) document.documentElement.classList.add('dark');
+        } catch (e) {
+          /* ignore */
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

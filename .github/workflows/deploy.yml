@@ -1,0 +1,68 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Prevent overlapping deploys but let the latest push finish.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Detect the correct base path. For a user/org repo named "<user>.github.io"
+      # the site is served from /, otherwise it's served from /<repo-name>/.
+      - name: Determine base path
+        id: base
+        run: |
+          NAME="${{ github.event.repository.name }}"
+          if [[ "$NAME" == *.github.io ]]; then
+            echo "path=/" >> "$GITHUB_OUTPUT"
+          else
+            echo "path=/$NAME/" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build
+        env:
+          VITE_BASE_PATH: ${{ steps.base.outputs.path }}
+        run: npm run build
+
+      # Bypass Jekyll — Vite output is served as-is.
+      - name: Add .nojekyll
+        run: touch dist/.nojekyll
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4
