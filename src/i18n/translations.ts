@@ -198,6 +198,8 @@ const en: Dict = {
   // Savings goal
   'goal.emptyTitle': 'Set a savings goal',
   'goal.emptySubtitle': 'Pick a target amount and date; we\'ll track progress.',
+  'goal.addAnother': 'Add another goal',
+  'goal.newTitle': 'New savings goal',
   'goal.defaultLabel': 'Savings goal',
   'goal.editButton': 'Edit goal',
   'goal.deleteButton': 'Remove goal',
@@ -573,6 +575,8 @@ const pt: Dict = {
   // Savings goal
   'goal.emptyTitle': 'Definir uma meta',
   'goal.emptySubtitle': 'Escolha um valor e data; acompanhamos o progresso.',
+  'goal.addAnother': 'Adicionar outra meta',
+  'goal.newTitle': 'Nova meta de poupança',
   'goal.defaultLabel': 'Meta de poupança',
   'goal.editButton': 'Editar meta',
   'goal.deleteButton': 'Remover meta',

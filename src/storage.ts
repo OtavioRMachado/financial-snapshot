@@ -111,6 +111,7 @@ export function defaultState(): AppState {
     assets: [],
     assetEntries: [],
     conversionRates: { USD: 0.92, BRL: 0.16 },
+    savingsGoals: [],
   };
 }
 
@@ -146,13 +147,20 @@ export function normalizeState(input: unknown): AppState {
 
   const fxRatesUpdatedAt =
     typeof raw.fxRatesUpdatedAt === 'string' ? raw.fxRatesUpdatedAt : undefined;
-  const savingsGoal =
-    raw.savingsGoal &&
-    typeof raw.savingsGoal === 'object' &&
-    typeof (raw.savingsGoal as Record<string, unknown>).targetAmount === 'number' &&
-    typeof (raw.savingsGoal as Record<string, unknown>).targetDate === 'string'
-      ? (raw.savingsGoal as AppState['savingsGoal'])
-      : undefined;
+
+  const isGoalShape = (g: unknown): g is Partial<SavingsGoal> =>
+    !!g &&
+    typeof g === 'object' &&
+    (typeof (g as Record<string, unknown>).targetAmount === 'number' ||
+      typeof (g as Record<string, unknown>).fire === 'object');
+  const withId = (g: Partial<SavingsGoal>): SavingsGoal =>
+    ({ ...g, id: typeof g.id === 'string' && g.id ? g.id : uid() }) as SavingsGoal;
+
+  const savingsGoals: SavingsGoal[] = Array.isArray(raw.savingsGoals)
+    ? (raw.savingsGoals as unknown[]).filter(isGoalShape).map(withId)
+    : isGoalShape(raw.savingsGoal)
+      ? [withId(raw.savingsGoal)]
+      : [];
 
   // Migrate months to strip legacy `salary` and convert it to income entries.
   const rawMonths = raw.months as Record<string, Record<string, unknown>>;
@@ -171,7 +179,7 @@ export function normalizeState(input: unknown): AppState {
     assetEntries,
     conversionRates,
     fxRatesUpdatedAt,
-    savingsGoal,
+    savingsGoals,
   };
 
   const curKey = currentMonthKey();

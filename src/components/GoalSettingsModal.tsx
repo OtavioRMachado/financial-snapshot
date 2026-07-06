@@ -8,7 +8,7 @@ import type {
   FireVariant,
   SavingsGoal,
 } from '../types';
-import { currencySymbol, formatCurrency, formatDateFull, todayISO } from '../utils';
+import { currencySymbol, formatCurrency, formatDateFull, todayISO, uid } from '../utils';
 import { assetNativeValue, computeFireTarget, estimateGoalReachDate } from '../storage';
 import { useT, useLocale } from '../i18n';
 import { getAssetIcon } from './assetIcons';
@@ -122,8 +122,10 @@ export default function GoalSettingsModal({
   const submit = () => {
     if (!canSave) return;
     const contributions = buildContributions();
+    const id = goal?.id ?? uid();
     if (type === 'amount') {
       onSave({
+        id,
         type,
         targetDate: date,
         label: label.trim() || undefined,
@@ -132,6 +134,7 @@ export default function GoalSettingsModal({
       });
     } else {
       onSave({
+        id,
         type,
         label: label.trim() || undefined,
         contributions,
@@ -593,6 +596,7 @@ function EstimatedReachDatePreview({
   const locale = useLocale();
   const previewGoal: SavingsGoal = useMemo(
     () => ({
+      id: 'preview',
       type: 'fire',
       fire,
       targetAmount: fire.useManual ? manualAmount : computeFireTarget(fire),

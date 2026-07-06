@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, Target } from 'lucide-react';
 import type { Asset, AssetEntry, CurrencyCode, SavingsGoal } from '../types';
 import PatrimonySummary from './PatrimonySummary';
 import AssetSection from './AssetSection';
@@ -17,7 +17,7 @@ interface Props {
   currency: CurrencyCode;
   conversionRates: Partial<Record<CurrencyCode, number>>;
   fxRatesUpdatedAt: string | undefined;
-  savingsGoal: SavingsGoal | undefined;
+  savingsGoals: SavingsGoal[];
   onSaveAsset: (asset: Asset) => void;
   onDeleteAsset: (id: string) => void;
   onAddEntry: (entry: AssetEntry) => void;
@@ -25,7 +25,7 @@ interface Props {
   onUpdateConversionRate: (currency: CurrencyCode, rate: number) => void;
   onBulkUpdateConversionRates: (rates: Partial<Record<CurrencyCode, number>>) => void;
   onSaveGoal: (goal: SavingsGoal) => void;
-  onDeleteGoal: () => void;
+  onDeleteGoal: (id: string) => void;
   onToast: (msg: string) => void;
 }
 
@@ -35,7 +35,7 @@ export default function InvestmentsView({
   currency,
   conversionRates,
   fxRatesUpdatedAt,
-  savingsGoal,
+  savingsGoals,
   onSaveAsset,
   onDeleteAsset,
   onAddEntry,
@@ -52,7 +52,20 @@ export default function InvestmentsView({
   );
   const [editingAsset, setEditingAsset] = useState<Asset | null>(null);
   const [creatingAsset, setCreatingAsset] = useState(false);
-  const [goalOpen, setGoalOpen] = useState(false);
+  /**
+   * Which goal the modal is editing:
+   *  - null: modal closed
+   *  - 'new': creating a new goal
+   *  - <id>: editing an existing goal
+   */
+  const [editingGoalId, setEditingGoalId] = useState<string | 'new' | null>(null);
+  const editingGoal = useMemo(
+    () =>
+      editingGoalId && editingGoalId !== 'new'
+        ? savingsGoals.find((g) => g.id === editingGoalId)
+        : undefined,
+    [editingGoalId, savingsGoals]
+  );
 
   const foreignCurrencies = useMemo(
     () => Array.from(new Set(assets.map((a) => a.currency).filter((c) => c !== currency))),
@@ -123,14 +136,39 @@ export default function InvestmentsView({
       />
 
       {assets.length > 0 && (
-        <GoalCard
-          goal={savingsGoal}
-          assets={assets}
-          entries={entries}
-          currency={currency}
-          conversionRates={conversionRates}
-          onEdit={() => setGoalOpen(true)}
-        />
+        savingsGoals.length === 0 ? (
+          <GoalCard
+            goal={undefined}
+            assets={assets}
+            entries={entries}
+            currency={currency}
+            conversionRates={conversionRates}
+            onEdit={() => setEditingGoalId('new')}
+          />
+        ) : (
+          <div className="space-y-3 sm:space-y-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
+              {savingsGoals.map((g) => (
+                <GoalCard
+                  key={g.id}
+                  goal={g}
+                  assets={assets}
+                  entries={entries}
+                  currency={currency}
+                  conversionRates={conversionRates}
+                  onEdit={() => setEditingGoalId(g.id)}
+                />
+              ))}
+            </div>
+            <button
+              onClick={() => setEditingGoalId('new')}
+              className="btn-ghost inline-flex items-center gap-2 text-sm"
+            >
+              <Target size={14} />
+              {t('goal.addAnother')}
+            </button>
+          </div>
+        )
       )}
 
       {assets.length > 0 && (
@@ -207,26 +245,32 @@ export default function InvestmentsView({
       </Modal>
 
       <Modal
-        open={goalOpen}
-        onClose={() => setGoalOpen(false)}
-        title={savingsGoal ? t('goal.editButton') : t('goal.emptyTitle')}
+        open={editingGoalId !== null}
+        onClose={() => setEditingGoalId(null)}
+        title={
+          editingGoalId === 'new'
+            ? t('goal.newTitle')
+            : editingGoal
+              ? t('goal.editButton')
+              : t('goal.emptyTitle')
+        }
         size="md"
       >
         <GoalSettingsModal
           currency={currency}
-          goal={savingsGoal}
+          goal={editingGoal}
           assets={assets}
           entries={entries}
           conversionRates={conversionRates}
           onSave={(g) => {
             onSaveGoal(g);
-            setGoalOpen(false);
+            setEditingGoalId(null);
           }}
           onDelete={() => {
-            onDeleteGoal();
-            setGoalOpen(false);
+            if (editingGoal) onDeleteGoal(editingGoal.id);
+            setEditingGoalId(null);
           }}
-          onClose={() => setGoalOpen(false)}
+          onClose={() => setEditingGoalId(null)}
         />
       </Modal>
     </div>

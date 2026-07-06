@@ -106,6 +106,8 @@ export interface FireInputs {
 }
 
 export interface SavingsGoal {
+  /** Stable identifier so goals can be updated/deleted individually. */
+  id: string;
   /** Undefined treated as 'amount' for backward compat */
   type?: 'amount' | 'fire';
   /** Manual target (for 'amount' or 'fire' with useManual=true) */
@@ -134,6 +136,6 @@ export interface AppState {
   conversionRates: Partial<Record<CurrencyCode, number>>;
   /** ISO timestamp of the last FX refresh, if any */
   fxRatesUpdatedAt?: string;
-  /** Optional single savings target */
-  savingsGoal?: SavingsGoal;
+  /** Zero or more savings targets. */
+  savingsGoals: SavingsGoal[];
 }
