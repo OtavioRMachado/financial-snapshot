@@ -28,9 +28,11 @@ import {
   ensureMonth,
   futureMonthCount,
   loadState,
+  rebaseConversionRates,
   saveState,
   stopRecurring,
 } from './storage';
+import { fetchLiveRates } from './fx';
 import { currentMonthKey, formatCurrency, shiftMonth, uid } from './utils';
 import type { RecurringMeta } from './components/AddExpenseForm';
 import MonthNavigator from './components/MonthNavigator';
@@ -297,8 +299,37 @@ function AppInner({
   };
 
   const setCurrency = (code: CurrencyCode) => {
-    setState((s) => ({ ...s, currency: code }));
     setCurrencyMenuOpen(false);
+    if (code === state.currency) return;
+    setState((s) => ({
+      ...s,
+      currency: code,
+      conversionRates: rebaseConversionRates(s.currency, code, s.conversionRates),
+    }));
+    // Fire a background FX refresh so any rates the rebase couldn't derive
+    // (missing pivot, brand-new foreign currency) get filled in.
+    void refreshFxRatesFor(code);
+  };
+
+  const refreshFxRatesFor = async (base: CurrencyCode) => {
+    const needed = Array.from(
+      new Set(state.assets.map((a) => a.currency).filter((c) => c !== base))
+    );
+    if (needed.length === 0) return;
+    try {
+      const rates = await fetchLiveRates(base, needed);
+      if (Object.keys(rates).length === 0) return;
+      setState((s) => {
+        if (s.currency !== base) return s; // user changed currency again mid-flight
+        return {
+          ...s,
+          conversionRates: { ...s.conversionRates, ...rates },
+          fxRatesUpdatedAt: new Date().toISOString(),
+        };
+      });
+    } catch (err) {
+      console.error('Auto FX refresh failed', err);
+    }
   };
 
   // --- Asset handlers ---
@@ -368,12 +399,18 @@ function AppInner({
   };
 
   const handleSaveGoal = (goal: import('./types').SavingsGoal) => {
-    setState((s) => ({ ...s, savingsGoal: goal }));
+    setState((s) => {
+      const exists = s.savingsGoals.some((g) => g.id === goal.id);
+      const nextGoals = exists
+        ? s.savingsGoals.map((g) => (g.id === goal.id ? goal : g))
+        : [...s.savingsGoals, goal];
+      return { ...s, savingsGoals: nextGoals };
+    });
     showToast(t('toast.goalSaved'));
   };
 
-  const handleDeleteGoal = () => {
-    setState((s) => ({ ...s, savingsGoal: undefined }));
+  const handleDeleteGoal = (id: string) => {
+    setState((s) => ({ ...s, savingsGoals: s.savingsGoals.filter((g) => g.id !== id) }));
   };
 
   return (
@@ -608,7 +645,7 @@ function AppInner({
             currency={state.currency}
             conversionRates={state.conversionRates}
             fxRatesUpdatedAt={state.fxRatesUpdatedAt}
-            savingsGoal={state.savingsGoal}
+            savingsGoals={state.savingsGoals}
             onSaveAsset={handleSaveAsset}
             onDeleteAsset={handleDeleteAsset}
             onAddEntry={handleAddAssetEntry}

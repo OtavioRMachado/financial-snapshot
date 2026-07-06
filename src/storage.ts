@@ -386,6 +386,40 @@ export function futureMonthCount(state: AppState, fromMonthId: string): number {
   return Object.keys(state.months).filter((k) => k > fromMonthId).length;
 }
 
+/**
+ * Rebase conversion rates when the app currency changes.
+ *
+ * `conversionRates` is stored as "app-currency units per 1 unit of X". When the
+ * app currency flips from `oldBase` to `newBase`, every stored rate becomes
+ * meaningless and there is no entry for `oldBase` itself. This helper produces
+ * a fresh rate map expressed in the new base, using the old `newBase` entry as
+ * the pivot ("1 newBase costs N oldBase, so 1 oldBase costs 1/N newBase"). Any
+ * rate that can't be derived is dropped so callers can trigger a fresh FX
+ * fetch instead of showing stale numbers.
+ */
+export function rebaseConversionRates(
+  oldBase: CurrencyCode,
+  newBase: CurrencyCode,
+  oldRates: Partial<Record<CurrencyCode, number>>
+): Partial<Record<CurrencyCode, number>> {
+  if (oldBase === newBase) {
+    const copy: Partial<Record<CurrencyCode, number>> = { ...oldRates };
+    delete copy[newBase];
+    return copy;
+  }
+  const oldPerNew = oldRates[newBase];
+  if (typeof oldPerNew !== 'number' || oldPerNew <= 0) return {};
+  const next: Partial<Record<CurrencyCode, number>> = {
+    [oldBase]: 1 / oldPerNew,
+  };
+  for (const [code, rate] of Object.entries(oldRates)) {
+    if (code === newBase || code === oldBase) continue;
+    if (typeof rate !== 'number' || rate <= 0) continue;
+    next[code as CurrencyCode] = rate / oldPerNew;
+  }
+  return next;
+}
+
 /** Current value of an asset in its own currency (latest snapshot or cumulative sum). */
 export function assetNativeValue(asset: Asset, entries: AssetEntry[]): number {
   const filtered = entries.filter((e) => e.assetId === asset.id);
