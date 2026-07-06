@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Plus, CornerDownLeft, Repeat, Infinity as InfinityIcon } from 'lucide-react';
-import type { CurrencyCode, Expense, Month } from '../types';
+import { Plus, CornerDownLeft, Repeat, Infinity as InfinityIcon, ArrowDownLeft, ArrowUpRight } from 'lucide-react';
+import type { CurrencyCode, EntryKind, Expense, Month } from '../types';
 import { currencySymbol, todayISO, uid } from '../utils';
 import { useT } from '../i18n';
 
@@ -13,10 +13,22 @@ interface Props {
   currency: CurrencyCode;
   onAdd: (expense: Expense, recurring?: RecurringMeta) => void;
   recentCategoryIds: string[];
+  /** Render without the outer `.card` styling (for use inside a modal). */
+  bare?: boolean;
+  /** Called after a successful add — e.g. to close the modal wrapping this form. */
+  onAfterAdd?: () => void;
 }
 
-export default function AddExpenseForm({ month, currency, onAdd, recentCategoryIds }: Props) {
+export default function AddExpenseForm({
+  month,
+  currency,
+  onAdd,
+  recentCategoryIds,
+  bare = false,
+  onAfterAdd,
+}: Props) {
   const t = useT();
+  const [kind, setKind] = useState<EntryKind>('expense');
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
   const [categoryId, setCategoryId] = useState<string>(
@@ -66,7 +78,8 @@ export default function AddExpenseForm({ month, currency, onAdd, recentCategoryI
   const parsedAmount = Number.parseFloat(amount.replace(',', '.'));
   const parsedMonths = Math.max(1, Math.floor(Number.parseFloat(monthsStr) || 0));
   const monthsValid = indefinite || parsedMonths >= 1;
-  const canSubmit = parsedAmount > 0 && categoryId && date && (!recurring || monthsValid);
+  const categoryOk = kind === 'income' || !!categoryId;
+  const canSubmit = parsedAmount > 0 && categoryOk && date && (!recurring || monthsValid);
 
   const submit = (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -76,9 +89,11 @@ export default function AddExpenseForm({ month, currency, onAdd, recentCategoryI
       id: uid(),
       amount: Math.round(parsedAmount * 100) / 100,
       description: description.trim(),
-      categoryId,
+      // Income entries are uncategorized; the description carries their meaning.
+      categoryId: kind === 'income' ? undefined : categoryId,
       date,
       createdAt: Date.now(),
+      kind,
     };
 
     const recurringMeta: RecurringMeta | undefined = recurring
@@ -89,25 +104,64 @@ export default function AddExpenseForm({ month, currency, onAdd, recentCategoryI
     setAmount('');
     setDescription('');
     amountRef.current?.focus();
+    onAfterAdd?.();
   };
 
   return (
-    <form onSubmit={submit} className="card p-4 sm:p-5">
-      <div className="flex items-center justify-between mb-3">
+    <form
+      onSubmit={submit}
+      className={bare ? '' : 'card p-4 sm:p-5'}
+    >
+      <div className="flex items-center justify-between mb-3 gap-3">
         <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
           <Plus size={16} className="text-accent" />
-          {t('addExpense.title')}
+          {kind === 'income' ? t('addExpense.titleIncome') : t('addExpense.title')}
         </h3>
-        <span className="hidden sm:flex items-center gap-1 text-[11px] text-slate-500">
-          {t('addExpense.focusPrefix')}
-          <kbd className="px-1.5 py-0.5 rounded bg-surface-overlay border border-surface-border text-slate-700 dark:text-slate-300">
-            N
-          </kbd>
-          {t('addExpense.focusSuffix')}
-        </span>
+
+        <div className="flex items-center gap-0.5 p-0.5 rounded-lg bg-surface-overlay border border-surface-border">
+          <button
+            type="button"
+            onClick={() => setKind('expense')}
+            className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors ${
+              kind === 'expense'
+                ? 'bg-accent text-white'
+                : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+            }`}
+          >
+            <ArrowUpRight size={12} />
+            {t('addExpense.kindExpense')}
+          </button>
+          <button
+            type="button"
+            onClick={() => setKind('income')}
+            className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors ${
+              kind === 'income'
+                ? 'bg-emerald-500 text-white'
+                : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+            }`}
+          >
+            <ArrowDownLeft size={12} />
+            {t('addExpense.kindIncome')}
+          </button>
+        </div>
+        {!bare && (
+          <span className="hidden sm:flex items-center gap-1 text-[11px] text-slate-500">
+            {t('addExpense.focusPrefix')}
+            <kbd className="px-1.5 py-0.5 rounded bg-surface-overlay border border-surface-border text-slate-700 dark:text-slate-300">
+              N
+            </kbd>
+            {t('addExpense.focusSuffix')}
+          </span>
+        )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-[minmax(0,150px)_minmax(0,1fr)_minmax(0,180px)_minmax(0,150px)_auto] gap-3 items-end">
+      <div
+        className={`grid grid-cols-1 gap-3 items-end ${
+          kind === 'income'
+            ? 'md:grid-cols-[minmax(0,150px)_minmax(0,1fr)_minmax(0,150px)_auto]'
+            : 'md:grid-cols-[minmax(0,150px)_minmax(0,1fr)_minmax(0,180px)_minmax(0,150px)_auto]'
+        }`}
+      >
         <div>
           <label className="label" htmlFor="expense-amount">
             {t('common.amount')}
@@ -140,7 +194,11 @@ export default function AddExpenseForm({ month, currency, onAdd, recentCategoryI
           <input
             id="expense-desc"
             type="text"
-            placeholder={t('addExpense.descPlaceholder')}
+            placeholder={
+              kind === 'income'
+                ? t('addExpense.descPlaceholderIncome')
+                : t('addExpense.descPlaceholder')
+            }
             className="input"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
@@ -148,26 +206,28 @@ export default function AddExpenseForm({ month, currency, onAdd, recentCategoryI
           />
         </div>
 
-        <div>
-          <label className="label" htmlFor="expense-cat">
-            {t('common.category')}
-          </label>
-          <select
-            id="expense-cat"
-            className="input appearance-none pr-8"
-            value={categoryId}
-            onChange={(e) => setCategoryId(e.target.value)}
-          >
-            {sortedCategories.length === 0 && (
-              <option value="">{t('addExpense.noCategories')}</option>
-            )}
-            {sortedCategories.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-        </div>
+        {kind === 'expense' && (
+          <div>
+            <label className="label" htmlFor="expense-cat">
+              {t('common.category')}
+            </label>
+            <select
+              id="expense-cat"
+              className="input appearance-none pr-8"
+              value={categoryId}
+              onChange={(e) => setCategoryId(e.target.value)}
+            >
+              {sortedCategories.length === 0 && (
+                <option value="">{t('addExpense.noCategories')}</option>
+              )}
+              {sortedCategories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <div>
           <label className="label" htmlFor="expense-date">

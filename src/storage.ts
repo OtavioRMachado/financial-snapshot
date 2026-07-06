@@ -5,8 +5,10 @@ import type {
   Category,
   CurrencyCode,
   Expense,
+  FireInputs,
   Month,
   RecurringExpense,
+  SavingsGoal,
 } from './types';
 import { CATEGORY_PALETTE, currentMonthKey, monthKey, parseMonthKey, uid } from './utils';
 
@@ -31,9 +33,41 @@ function seedMonth(key: string): Month {
     id: key,
     year,
     month,
-    salary: 3000,
     categories: DEFAULT_CATEGORIES.map((c) => ({ ...c, id: uid() })),
     expenses: [],
+  };
+}
+
+/**
+ * Legacy migration: earlier versions stored a static `salary` per month as the
+ * budget target. The new model derives the budget from income entries. For any
+ * month that still has a positive salary and no income yet, we materialize a
+ * single "Monthly income" entry so users don't lose their historical budget.
+ */
+function migrateSalaryToIncome(monthAny: Record<string, unknown>): Month {
+  const raw = monthAny as unknown as Month & { salary?: number };
+  const legacySalary = typeof raw.salary === 'number' ? raw.salary : 0;
+  const expenses = Array.isArray(raw.expenses) ? [...raw.expenses] : [];
+  const hasIncome = expenses.some((e) => e.kind === 'income');
+
+  if (legacySalary > 0 && !hasIncome) {
+    const [yStr, mStr] = raw.id.split('-');
+    expenses.push({
+      id: uid(),
+      amount: legacySalary,
+      description: 'Monthly income',
+      date: `${yStr}-${mStr}-01`,
+      createdAt: Date.now(),
+      kind: 'income',
+    });
+  }
+
+  return {
+    id: raw.id,
+    year: raw.year,
+    month: raw.month,
+    categories: Array.isArray(raw.categories) ? raw.categories : [],
+    expenses,
   };
 }
 
@@ -81,15 +115,34 @@ export function normalizeState(input: unknown): AppState {
     ? (raw.recurringExpenses as RecurringExpense[])
     : [];
 
+  const fxRatesUpdatedAt =
+    typeof raw.fxRatesUpdatedAt === 'string' ? raw.fxRatesUpdatedAt : undefined;
+  const savingsGoal =
+    raw.savingsGoal &&
+    typeof raw.savingsGoal === 'object' &&
+    typeof (raw.savingsGoal as Record<string, unknown>).targetAmount === 'number' &&
+    typeof (raw.savingsGoal as Record<string, unknown>).targetDate === 'string'
+      ? (raw.savingsGoal as AppState['savingsGoal'])
+      : undefined;
+
+  // Migrate months to strip legacy `salary` and convert it to income entries.
+  const rawMonths = raw.months as Record<string, Record<string, unknown>>;
+  const migratedMonths: Record<string, Month> = {};
+  for (const [mid, m] of Object.entries(rawMonths)) {
+    migratedMonths[mid] = migrateSalaryToIncome(m);
+  }
+
   const state: AppState = {
     language,
     theme,
     currency,
-    months: raw.months as Record<string, Month>,
+    months: migratedMonths,
     recurringExpenses,
     assets,
     assetEntries,
     conversionRates,
+    fxRatesUpdatedAt,
+    savingsGoal,
   };
 
   const curKey = currentMonthKey();
@@ -165,7 +218,6 @@ export function deriveNextMonth(state: AppState, targetKey: string): Month {
     id: targetKey,
     year,
     month,
-    salary: prev.salary,
     categories: prev.categories.map((c) => ({
       id: c.id,
       name: c.name,
@@ -199,8 +251,13 @@ export function materializeRecurringForMonth(month: Month, recurring: RecurringE
     if (month.id < r.startMonthId) continue;
     if (r.endMonthId && month.id > r.endMonthId) continue;
 
-    const catId = resolveCategoryId(month, r);
-    if (!catId) continue;
+    const isIncome = r.kind === 'income';
+    let catId: string | undefined;
+    if (!isIncome) {
+      const resolved = resolveCategoryId(month, r);
+      if (!resolved) continue; // expense template needs a category
+      catId = resolved;
+    }
 
     const daysInMonth = new Date(month.year, month.month, 0).getDate();
     const day = Math.min(Math.max(1, r.dayOfMonth), daysInMonth);
@@ -214,6 +271,7 @@ export function materializeRecurringForMonth(month: Month, recurring: RecurringE
       date: iso,
       createdAt: Date.now(),
       recurringId: r.id,
+      kind: r.kind ?? 'expense',
     });
   }
 
@@ -222,10 +280,11 @@ export function materializeRecurringForMonth(month: Month, recurring: RecurringE
 }
 
 function resolveCategoryId(month: Month, r: RecurringExpense): string | null {
-  const byId = month.categories.find((c) => c.id === r.categoryId);
+  if (!r.categoryId && !r.categoryName) return null;
+  const byId = r.categoryId ? month.categories.find((c) => c.id === r.categoryId) : undefined;
   if (byId) return byId.id;
   const byName = month.categories.find(
-    (c) => c.name.toLowerCase() === r.categoryName.toLowerCase()
+    (c) => c.name.toLowerCase() === (r.categoryName ?? '').toLowerCase()
   );
   return byName ? byName.id : null;
 }
@@ -268,7 +327,6 @@ export function monthKeyList(state: AppState): string[] {
 export function applyBudgetsToFutureMonths(
   state: AppState,
   fromMonthId: string,
-  salary: number,
   categories: Category[]
 ): AppState {
   const nextMonths: Record<string, Month> = {};
@@ -281,7 +339,6 @@ export function applyBudgetsToFutureMonths(
     for (const c of categories) byId.set(c.id, { ...c });
     nextMonths[mid] = {
       ...m,
-      salary,
       categories: Array.from(byId.values()),
     };
   }
@@ -290,6 +347,257 @@ export function applyBudgetsToFutureMonths(
 
 export function futureMonthCount(state: AppState, fromMonthId: string): number {
   return Object.keys(state.months).filter((k) => k > fromMonthId).length;
+}
+
+/** Current value of an asset in its own currency (latest snapshot or cumulative sum). */
+export function assetNativeValue(asset: Asset, entries: AssetEntry[]): number {
+  const filtered = entries.filter((e) => e.assetId === asset.id);
+  if (filtered.length === 0) return 0;
+  if (asset.type === 'snapshot') {
+    const sorted = [...filtered].sort((a, b) => a.date.localeCompare(b.date));
+    return sorted[sorted.length - 1].amount;
+  }
+  return filtered.reduce((a, b) => a + b.amount, 0);
+}
+
+/** Target amount for a goal: manual for 'amount' type, computed for FIRE. */
+export function computeGoalTargetAmount(goal: SavingsGoal): number {
+  if (goal.type === 'fire' && goal.fire && !goal.fire.useManual) {
+    return computeFireTarget(goal.fire);
+  }
+  return goal.targetAmount ?? 0;
+}
+
+export function computeFireTarget(f: FireInputs): number {
+  const swr = f.swr ?? 0.04;
+  const expenses = f.annualExpenses ?? 0;
+  const fullFire = swr > 0 ? expenses / swr : 0;
+  switch (f.variant) {
+    case 'regular':
+      return fullFire;
+    case 'coast': {
+      const years = Math.max(0, (f.retirementAge ?? 0) - (f.currentAge ?? 0));
+      const realReturn = f.realReturn ?? 0.05;
+      return years > 0 ? fullFire / Math.pow(1 + realReturn, years) : fullFire;
+    }
+    case 'barista': {
+      const partTime = f.partTimeAnnualIncome ?? 0;
+      return swr > 0 ? Math.max(0, (expenses - partTime) / swr) : 0;
+    }
+  }
+}
+
+/**
+ * Estimate when the goal's target will be reached, using the same compounding
+ * assumptions as the patrimony projection but weighted by goal contributions.
+ * Projects up to 100 years out. Returns:
+ *  - The current date if already achieved
+ *  - The first month it crosses the target
+ *  - null if no projections are enabled among contributing assets, or if the
+ *    target is unreachable within 100 years
+ */
+export function estimateGoalReachDate(
+  goal: SavingsGoal,
+  assets: Asset[],
+  entries: AssetEntry[],
+  appCurrency: CurrencyCode,
+  conversionRates: Partial<Record<CurrencyCode, number>>
+): Date | null {
+  const target = computeGoalTargetAmount(goal);
+  if (target <= 0) return null;
+
+  const contribs = goal.contributions;
+  const assetPrep = assets.map((asset) => {
+    const pct = contribs === undefined ? 100 : (contribs[asset.id] ?? 0);
+    const weight = pct / 100;
+    const rate = asset.currency === appCurrency ? 1 : conversionRates[asset.currency] ?? 1;
+    const base = assetNativeValue(asset, entries);
+    const proj = asset.type === 'snapshot' ? asset.projection : undefined;
+    return {
+      weight,
+      base,
+      rate,
+      projected: !!proj?.enabled,
+      monthlyRate: proj?.enabled ? Math.pow(1 + proj.annualReturnRate, 1 / 12) - 1 : 0,
+      contribution: proj?.enabled ? proj.monthlyContribution : 0,
+    };
+  });
+
+  const running = assetPrep.map((p) => p.base);
+  const evaluate = () =>
+    running.reduce((acc, v, i) => acc + v * assetPrep[i].rate * assetPrep[i].weight, 0);
+
+  if (evaluate() >= target) return new Date();
+
+  const anyContributingWithProjection = assetPrep.some(
+    (p) => p.projected && p.weight > 0 && (p.base > 0 || p.contribution > 0)
+  );
+  if (!anyContributingWithProjection) return null;
+
+  const now = new Date();
+  const CAP_MONTHS = 100 * 12;
+  for (let m = 1; m <= CAP_MONTHS; m++) {
+    for (let i = 0; i < assetPrep.length; i++) {
+      const p = assetPrep[i];
+      if (p.projected) running[i] = running[i] * (1 + p.monthlyRate) + p.contribution;
+    }
+    if (evaluate() >= target) {
+      return new Date(now.getFullYear(), now.getMonth() + m, 1);
+    }
+  }
+  return null;
+}
+
+/**
+ * Sum of assets weighted by their goal contribution %. When goal.contributions
+ * is undefined, every asset contributes 100%. Foreign currencies convert to
+ * appCurrency at the current rate.
+ */
+export function contributingPatrimony(
+  goal: SavingsGoal,
+  assets: Asset[],
+  entries: AssetEntry[],
+  appCurrency: CurrencyCode,
+  conversionRates: Partial<Record<CurrencyCode, number>>
+): number {
+  let total = 0;
+  for (const asset of assets) {
+    const pct =
+      goal.contributions === undefined
+        ? 100
+        : (goal.contributions[asset.id] ?? 0);
+    if (pct <= 0) continue;
+    const native = assetNativeValue(asset, entries);
+    const rate = asset.currency === appCurrency ? 1 : conversionRates[asset.currency] ?? 1;
+    total += native * rate * (pct / 100);
+  }
+  return total;
+}
+
+/**
+ * Month-by-month actual patrimony from the earliest recorded entry up to the
+ * current month. For each month:
+ *  - Snapshot assets use the most recent snapshot at or before that month
+ *  - Cumulative assets sum all entries at or before that month
+ * Foreign currency values convert at the constant current rate.
+ */
+export function computePatrimonyHistoryPoints(
+  assets: Asset[],
+  entries: AssetEntry[],
+  appCurrency: CurrencyCode,
+  conversionRates: Partial<Record<CurrencyCode, number>>
+): { date: Date; value: number }[] {
+  if (entries.length === 0) return [];
+
+  const earliest = entries.reduce((min, e) => (e.date < min ? e.date : min), entries[0].date);
+  const [ey, em] = earliest.split('-').map(Number);
+  const earliestMonth = new Date(ey, em - 1, 1);
+  const now = new Date();
+  const currentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  const monthsSpan =
+    (currentMonth.getFullYear() - earliestMonth.getFullYear()) * 12 +
+    (currentMonth.getMonth() - earliestMonth.getMonth());
+  if (monthsSpan < 0) return [];
+
+  // Pre-sort entries per asset once
+  const entriesByAsset = new Map<string, AssetEntry[]>();
+  for (const e of entries) {
+    const list = entriesByAsset.get(e.assetId) ?? [];
+    list.push(e);
+    entriesByAsset.set(e.assetId, list);
+  }
+  for (const [, list] of entriesByAsset) {
+    list.sort((a, b) => a.date.localeCompare(b.date));
+  }
+
+  const points: { date: Date; value: number }[] = [];
+  for (let m = 0; m <= monthsSpan; m++) {
+    const targetMonth = new Date(earliestMonth.getFullYear(), earliestMonth.getMonth() + m, 1);
+    // Cutoff is the last day of this month
+    const endOfMonth = new Date(targetMonth.getFullYear(), targetMonth.getMonth() + 1, 0);
+    const cutoff = `${endOfMonth.getFullYear()}-${String(endOfMonth.getMonth() + 1).padStart(
+      2,
+      '0'
+    )}-${String(endOfMonth.getDate()).padStart(2, '0')}`;
+
+    let total = 0;
+    for (const asset of assets) {
+      const rate = asset.currency === appCurrency ? 1 : conversionRates[asset.currency] ?? 1;
+      const list = entriesByAsset.get(asset.id) ?? [];
+      const eligible = list.filter((e) => e.date <= cutoff);
+      let native = 0;
+      if (asset.type === 'snapshot') {
+        if (eligible.length > 0) native = eligible[eligible.length - 1].amount;
+      } else {
+        native = eligible.reduce((a, b) => a + b.amount, 0);
+      }
+      total += native * rate;
+    }
+    points.push({ date: targetMonth, value: total });
+  }
+
+  return points;
+}
+
+/**
+ * Month-by-month projected patrimony across all assets. Snapshot assets with
+ * projection enabled compound forward; cumulative assets and un-projected
+ * snapshots stay at their current value. Foreign currency values convert at
+ * the constant current rate.
+ */
+export function computePatrimonyProjectionPoints(
+  assets: Asset[],
+  entries: AssetEntry[],
+  appCurrency: CurrencyCode,
+  conversionRates: Partial<Record<CurrencyCode, number>>
+): { date: Date; value: number }[] {
+  const horizons = assets
+    .filter((a) => a.projection?.enabled)
+    .map((a) => a.projection!.years);
+  if (horizons.length === 0) return [];
+  const horizonYears = Math.max(...horizons);
+  const totalMonths = horizonYears * 12;
+
+  // Pre-compute per-asset base value + monthly compounding parameters.
+  const assetPrep = assets.map((asset) => {
+    const rate = asset.currency === appCurrency ? 1 : conversionRates[asset.currency] ?? 1;
+    const base = assetNativeValue(asset, entries);
+    const proj = asset.type === 'snapshot' ? asset.projection : undefined;
+    return {
+      base,
+      rate,
+      projected: !!proj?.enabled,
+      monthlyRate: proj?.enabled ? Math.pow(1 + proj.annualReturnRate, 1 / 12) - 1 : 0,
+      contribution: proj?.enabled ? proj.monthlyContribution : 0,
+    };
+  });
+
+  const now = new Date();
+  const startMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const points: { date: Date; value: number }[] = [];
+
+  // Track running values to compound incrementally (O(months × assets), not cubic).
+  const running = assetPrep.map((p) => p.base);
+
+  for (let m = 0; m <= totalMonths; m++) {
+    if (m > 0) {
+      for (let i = 0; i < assetPrep.length; i++) {
+        const p = assetPrep[i];
+        if (p.projected) {
+          running[i] = running[i] * (1 + p.monthlyRate) + p.contribution;
+        }
+      }
+    }
+    let total = 0;
+    for (let i = 0; i < assetPrep.length; i++) {
+      total += running[i] * assetPrep[i].rate;
+    }
+    const date = new Date(startMonth.getFullYear(), startMonth.getMonth() + m, 1);
+    points.push({ date, value: total });
+  }
+
+  return points;
 }
 
 /**

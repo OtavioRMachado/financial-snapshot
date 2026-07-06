@@ -3,6 +3,7 @@ import { Trash2 } from 'lucide-react';
 import type { Asset, AssetProjection, AssetType, CurrencyCode } from '../types';
 import { CATEGORY_PALETTE, currencySymbol, uid } from '../utils';
 import { ASSET_ICON_KEYS, getAssetIcon } from './assetIcons';
+import PercentInput from './PercentInput';
 import { useT } from '../i18n';
 
 interface Props {
@@ -197,22 +198,10 @@ export default function AssetSettingsModal({
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 animate-fade-in">
               <div>
                 <label className="label">{t('projection.annualReturn')}</label>
-                <div className="relative">
-                  <input
-                    type="number"
-                    step="0.1"
-                    className="input pr-8 tabular-nums"
-                    value={(projectionDraft.annualReturnRate * 100).toString()}
-                    onChange={(e) => {
-                      const v = Number.parseFloat(e.target.value.replace(',', '.'));
-                      if (Number.isFinite(v))
-                        setProjectionDraft((p) => ({ ...p, annualReturnRate: v / 100 }));
-                    }}
-                  />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-600 dark:text-slate-400 text-sm">
-                    %
-                  </span>
-                </div>
+                <PercentInput
+                  value={projectionDraft.annualReturnRate}
+                  onChange={(v) => setProjectionDraft((p) => ({ ...p, annualReturnRate: v }))}
+                />
               </div>
               <div>
                 <label className="label">{t('projection.monthlyContribution')}</label>

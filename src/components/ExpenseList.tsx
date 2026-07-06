@@ -1,21 +1,35 @@
 import { useMemo, useState } from 'react';
-import { Trash2, Search, Receipt, Repeat, CircleSlash } from 'lucide-react';
+import {
+  Trash2,
+  Search,
+  Receipt,
+  Repeat,
+  CircleSlash,
+  ArrowDownLeft,
+} from 'lucide-react';
 import type { CurrencyCode, Expense, Month, RecurringExpense } from '../types';
-import { formatCurrency, formatDateReadable } from '../utils';
+import { formatCurrency, formatDateReadable, formatMonthShort } from '../utils';
 import { useT, useLocale } from '../i18n';
 
 interface Props {
   month: Month;
   currency: CurrencyCode;
   recurring: RecurringExpense[];
-  onDelete: (expenseId: string) => void;
+  /** All months keyed by id, for cross-month search. */
+  allMonths: Record<string, Month>;
+  onDelete: (expenseId: string, monthId: string) => void;
   onStopRecurring: (recurringId: string) => void;
+}
+
+interface RowExpense extends Expense {
+  monthId: string;
 }
 
 export default function ExpenseList({
   month,
   currency,
   recurring,
+  allMonths,
   onDelete,
   onStopRecurring,
 }: Props) {
@@ -23,14 +37,20 @@ export default function ExpenseList({
   const locale = useLocale();
   const [query, setQuery] = useState('');
   const [filterCat, setFilterCat] = useState<string>('all');
+  const [searchAll, setSearchAll] = useState(false);
 
   const fmt = (n: number) => formatCurrency(n, currency, { locale });
 
-  const catById = useMemo(() => {
-    const m: Record<string, { name: string; color: string }> = {};
-    for (const c of month.categories) m[c.id] = { name: c.name, color: c.color };
-    return m;
-  }, [month.categories]);
+  // Category lookup — need one that spans all months when searching globally
+  const catLookup = useMemo(() => {
+    const byMonthAndId: Record<string, Record<string, { name: string; color: string }>> = {};
+    for (const [mid, m] of Object.entries(allMonths)) {
+      const inner: Record<string, { name: string; color: string }> = {};
+      for (const c of m.categories) inner[c.id] = { name: c.name, color: c.color };
+      byMonthAndId[mid] = inner;
+    }
+    return byMonthAndId;
+  }, [allMonths]);
 
   const recurringById = useMemo(() => {
     const m: Record<string, RecurringExpense> = {};
@@ -38,25 +58,36 @@ export default function ExpenseList({
     return m;
   }, [recurring]);
 
+  const active = searchAll ? Object.values(allMonths) : [month];
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return month.expenses
+    const rows: RowExpense[] = [];
+    for (const m of active) {
+      for (const e of m.expenses) {
+        rows.push({ ...e, monthId: m.id });
+      }
+    }
+    return rows
       .filter((e) => filterCat === 'all' || e.categoryId === filterCat)
       .filter((e) => {
         if (!q) return true;
+        const catName = e.categoryId
+          ? catLookup[e.monthId]?.[e.categoryId]?.name ?? ''
+          : '';
         return (
           e.description.toLowerCase().includes(q) ||
-          (catById[e.categoryId]?.name.toLowerCase() ?? '').includes(q)
+          catName.toLowerCase().includes(q)
         );
       })
       .sort((a, b) => {
         if (a.date !== b.date) return a.date < b.date ? 1 : -1;
         return b.createdAt - a.createdAt;
       });
-  }, [month.expenses, filterCat, query, catById]);
+  }, [active, filterCat, query, catLookup]);
 
   const grouped = useMemo(() => {
-    const g: Record<string, Expense[]> = {};
+    const g: Record<string, RowExpense[]> = {};
     for (const e of filtered) {
       if (!g[e.date]) g[e.date] = [];
       g[e.date].push(e);
@@ -64,14 +95,17 @@ export default function ExpenseList({
     return Object.entries(g);
   }, [filtered]);
 
-  const totalCount = month.expenses.length;
-  const recurringCount = month.expenses.filter((e) => e.recurringId).length;
+  const totalCount = active.reduce((acc, m) => acc + m.expenses.length, 0);
+  const recurringCount = active.reduce(
+    (acc, m) => acc + m.expenses.filter((e) => e.recurringId).length,
+    0
+  );
 
   return (
     <div className="card">
       <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center sm:justify-between gap-3 p-4 sm:p-5 sm:pb-3 border-b border-surface-border">
         <div>
-          <h3 className="text-sm font-semibold flex items-center gap-2">
+          <h3 className="text-sm font-semibold flex items-center gap-2 flex-wrap">
             <Receipt size={16} className="text-slate-600 dark:text-slate-400" />
             {t('expenseList.title')}
             <span className="chip !py-0.5 !px-2">{totalCount}</span>
@@ -110,6 +144,15 @@ export default function ExpenseList({
             ))}
           </select>
         </div>
+        <label className="inline-flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400 cursor-pointer select-none sm:ml-auto">
+          <input
+            type="checkbox"
+            className="accent-accent"
+            checked={searchAll}
+            onChange={(e) => setSearchAll(e.target.checked)}
+          />
+          {t('expenseList.searchAllMonths')}
+        </label>
       </div>
 
       {totalCount === 0 ? (
@@ -129,19 +172,28 @@ export default function ExpenseList({
       ) : (
         <div className="max-h-[520px] overflow-y-auto">
           {grouped.map(([date, items]) => {
-            const dayTotal = items.reduce((a, b) => a + b.amount, 0);
+            const dayExpenses = items
+              .filter((i) => i.kind !== 'income')
+              .reduce((a, b) => a + b.amount, 0);
+            const dayIncome = items
+              .filter((i) => i.kind === 'income')
+              .reduce((a, b) => a + b.amount, 0);
+            const dayNet = dayExpenses - dayIncome;
             return (
               <div key={date}>
                 <div className="sticky top-0 z-10 flex items-center justify-between px-5 py-2 bg-surface-raised/95 backdrop-blur border-b border-surface-border">
                   <span className="text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-400 capitalize">
                     {formatDateReadable(date, locale)}
                   </span>
-                  <span className="text-xs text-slate-600 dark:text-slate-400 tabular-nums">{fmt(dayTotal)}</span>
+                  <span className="text-xs text-slate-600 dark:text-slate-400 tabular-nums">
+                    {fmt(dayNet)}
+                  </span>
                 </div>
                 <ul>
                   {items.map((e) => {
-                    const cat = catById[e.categoryId];
+                    const cat = e.categoryId ? catLookup[e.monthId]?.[e.categoryId] : undefined;
                     const rec = e.recurringId ? recurringById[e.recurringId] : undefined;
+                    const isIncome = e.kind === 'income';
                     return (
                       <li
                         key={e.id}
@@ -149,8 +201,12 @@ export default function ExpenseList({
                       >
                         <span
                           className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                          style={{ backgroundColor: cat?.color ?? '#666' }}
-                          title={cat?.name}
+                          style={{
+                            backgroundColor: isIncome
+                              ? '#22c55e'
+                              : (cat?.color ?? '#666'),
+                          }}
+                          title={isIncome ? t('addExpense.kindIncome') : cat?.name}
                         />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 min-w-0">
@@ -161,6 +217,12 @@ export default function ExpenseList({
                                 </span>
                               )}
                             </span>
+                            {isIncome && (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-emerald-500/15 text-emerald-500 dark:text-emerald-400 border border-emerald-500/25 flex-shrink-0">
+                                <ArrowDownLeft size={9} />
+                                {t('addExpense.kindIncome')}
+                              </span>
+                            )}
                             {rec && (
                               <span
                                 className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-accent/15 text-accent-soft border border-accent/25 flex-shrink-0"
@@ -177,11 +239,28 @@ export default function ExpenseList({
                               </span>
                             )}
                           </div>
-                          <div className="text-xs text-slate-500 mt-0.5">
-                            {cat?.name ?? t('expenseList.unknownCategory')}
-                          </div>
+                          {(!isIncome || searchAll) && (
+                            <div className="text-xs text-slate-500 mt-0.5 flex items-center gap-1.5">
+                              {!isIncome && (
+                                <span>{cat?.name ?? t('expenseList.unknownCategory')}</span>
+                              )}
+                              {searchAll && (
+                                <span className="text-slate-500 dark:text-slate-500">
+                                  {!isIncome ? '· ' : ''}
+                                  {formatMonthShort(e.monthId, locale)}
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </div>
-                        <div className="tabular-nums text-sm font-medium">{fmt(e.amount)}</div>
+                        <div
+                          className={`tabular-nums text-sm font-medium ${
+                            isIncome ? 'text-emerald-500 dark:text-emerald-400' : ''
+                          }`}
+                        >
+                          {isIncome ? '+' : ''}
+                          {fmt(e.amount)}
+                        </div>
                         <div className="flex items-center gap-0.5">
                           {rec && (
                             <button
@@ -199,7 +278,7 @@ export default function ExpenseList({
                           )}
                           <button
                             className="btn-ghost !p-1.5 opacity-0 group-hover:opacity-100 row-action text-slate-500 hover:!text-rose-400"
-                            onClick={() => onDelete(e.id)}
+                            onClick={() => onDelete(e.id, e.monthId)}
                             aria-label={t('common.delete')}
                             title={t('expenseList.deleteTitle')}
                           >

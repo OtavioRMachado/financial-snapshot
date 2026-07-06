@@ -10,9 +10,12 @@ export interface Category {
   color: string;
 }
 
+export type EntryKind = 'expense' | 'income';
+
 export interface Expense {
   id: string;
-  categoryId: string;
+  /** Required for expense entries; omitted for income (income is uncategorized). */
+  categoryId?: string;
   amount: number;
   description: string;
   /** ISO date string, day granularity: YYYY-MM-DD */
@@ -21,24 +24,29 @@ export interface Expense {
   createdAt: number;
   /** Set when this expense was materialized from a recurring template */
   recurringId?: string;
+  /** Default 'expense'. Income entries feed the monthly budget. */
+  kind?: EntryKind;
 }
 
 export interface RecurringExpense {
   id: string;
   amount: number;
   description: string;
-  categoryId: string;
+  /** Required for expense templates; omitted for income templates. */
+  categoryId?: string;
+  /** Used as a fallback when reconciling categoryId across months. Empty for income. */
   categoryName: string;
   dayOfMonth: number;
   startMonthId: string;
   endMonthId: string | null;
+  /** Default 'expense'. */
+  kind?: EntryKind;
 }
 
 export interface Month {
   id: string;
   year: number;
   month: number;
-  salary: number;
   categories: Category[];
   expenses: Expense[];
 }
@@ -79,6 +87,41 @@ export interface AssetEntry {
   note?: string;
 }
 
+export type FireVariant = 'regular' | 'coast' | 'barista';
+
+export interface FireInputs {
+  variant: FireVariant;
+  /** true = ignore inputs, use the SavingsGoal.targetAmount as the number */
+  useManual: boolean;
+  annualExpenses?: number;
+  /** Safe Withdrawal Rate, e.g. 0.04 for 4% */
+  swr?: number;
+  // Coast-specific
+  currentAge?: number;
+  retirementAge?: number;
+  /** Expected real (inflation-adjusted) annual return, e.g. 0.05 */
+  realReturn?: number;
+  // Barista-specific
+  partTimeAnnualIncome?: number;
+}
+
+export interface SavingsGoal {
+  /** Undefined treated as 'amount' for backward compat */
+  type?: 'amount' | 'fire';
+  /** Manual target (for 'amount' or 'fire' with useManual=true) */
+  targetAmount?: number;
+  /** YYYY-MM-DD. Required for 'amount' goals; ignored for FIRE (reach date is computed). */
+  targetDate?: string;
+  label?: string;
+  /** Present only for FIRE goals */
+  fire?: FireInputs;
+  /**
+   * Per-asset contribution percentage (0-100). Missing → every asset contributes 100%.
+   * Present with a subset of assets → only those contribute at the specified %.
+   */
+  contributions?: Record<string, number>;
+}
+
 export interface AppState {
   language: Language;
   theme: Theme;
@@ -89,4 +132,8 @@ export interface AppState {
   assetEntries: AssetEntry[];
   /** Units of the app currency per 1 unit of the key currency. Ignored for the app currency itself. */
   conversionRates: Partial<Record<CurrencyCode, number>>;
+  /** ISO timestamp of the last FX refresh, if any */
+  fxRatesUpdatedAt?: string;
+  /** Optional single savings target */
+  savingsGoal?: SavingsGoal;
 }

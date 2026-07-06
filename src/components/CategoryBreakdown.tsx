@@ -4,6 +4,8 @@ import { useT, useLocale } from '../i18n';
 
 interface Props {
   month: Month;
+  /** Optional: the previous month for month-over-month deltas. */
+  previousMonth?: Month;
   currency: CurrencyCode;
   onOpenSettings: () => void;
 }
@@ -16,18 +18,44 @@ interface Row {
   spent: number;
   pct: number;
   over: boolean;
+  /** % change vs previous month (null if no prior data). */
+  delta: number | null;
 }
 
-export default function CategoryBreakdown({ month, currency, onOpenSettings }: Props) {
+function sumForCategory(m: Month | undefined, categoryId: string): number {
+  if (!m) return 0;
+  return m.expenses
+    .filter((e) => e.categoryId === categoryId && e.kind !== 'income')
+    .reduce((a, b) => a + b.amount, 0);
+}
+
+export default function CategoryBreakdown({
+  month,
+  previousMonth,
+  currency,
+  onOpenSettings,
+}: Props) {
   const t = useT();
   const locale = useLocale();
   const fmt = (n: number) => formatCurrency(n, currency, { locale });
 
   const rows: Row[] = month.categories.map((c) => {
-    const spent = month.expenses
-      .filter((e) => e.categoryId === c.id)
-      .reduce((a, b) => a + b.amount, 0);
+    const spent = sumForCategory(month, c.id);
     const pct = c.budget > 0 ? (spent / c.budget) * 100 : 0;
+
+    // Delta: match previous-month category by ID first, then name
+    let prevSpent: number | null = null;
+    if (previousMonth) {
+      const prevCat =
+        previousMonth.categories.find((x) => x.id === c.id) ??
+        previousMonth.categories.find(
+          (x) => x.name.toLowerCase() === c.name.toLowerCase()
+        );
+      prevSpent = prevCat ? sumForCategory(previousMonth, prevCat.id) : null;
+    }
+    const delta =
+      prevSpent !== null && prevSpent > 0 ? ((spent - prevSpent) / prevSpent) * 100 : null;
+
     return {
       id: c.id,
       name: c.name,
@@ -36,6 +64,7 @@ export default function CategoryBreakdown({ month, currency, onOpenSettings }: P
       spent,
       pct,
       over: spent > c.budget && c.budget > 0,
+      delta,
     };
   });
 
@@ -63,13 +92,26 @@ export default function CategoryBreakdown({ month, currency, onOpenSettings }: P
             const cappedPct = Math.min(r.pct, 100);
             return (
               <div key={r.id}>
-                <div className="flex items-center justify-between text-sm">
+                <div className="flex items-center justify-between text-sm gap-2">
                   <div className="flex items-center gap-2 min-w-0">
                     <span
                       className="inline-block w-2.5 h-2.5 rounded-full flex-shrink-0"
                       style={{ backgroundColor: r.color }}
                     />
                     <span className="font-medium truncate">{r.name}</span>
+                    {r.delta !== null && Math.abs(r.delta) >= 5 && (
+                      <span
+                        className={`text-[10px] font-medium px-1 py-0.5 rounded ${
+                          r.delta > 0
+                            ? 'text-rose-500 dark:text-rose-400 bg-rose-500/10'
+                            : 'text-emerald-500 dark:text-emerald-400 bg-emerald-500/10'
+                        }`}
+                        title={t('category.deltaTooltip', { pct: r.delta.toFixed(0) })}
+                      >
+                        {r.delta > 0 ? '+' : ''}
+                        {r.delta.toFixed(0)}%
+                      </span>
+                    )}
                   </div>
                   <div className="text-slate-700 dark:text-slate-300 tabular-nums flex-shrink-0">
                     <span className={r.over ? 'text-rose-400 font-medium' : ''}>

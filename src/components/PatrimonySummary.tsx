@@ -4,6 +4,7 @@ import { formatCurrency } from '../utils';
 import { computePatrimonyForecast } from '../storage';
 import { useT, useLocale } from '../i18n';
 import { getAssetIcon } from './assetIcons';
+import PatrimonyProjectionChart from './PatrimonyProjectionChart';
 
 interface Props {
   currency: CurrencyCode;
@@ -86,6 +87,17 @@ export default function PatrimonySummary({
 
       {forecast.hasProjection && (
         <p className="text-[11px] text-slate-500 mb-4 -mt-2">{t('wealth.projectedNote')}</p>
+      )}
+
+      {assets.length > 0 && entries.length > 0 && (
+        <div className="mb-5 pb-5 border-b border-surface-border/60">
+          <PatrimonyProjectionChart
+            assets={assets}
+            entries={entries}
+            currency={currency}
+            conversionRates={conversionRates}
+          />
+        </div>
       )}
 
       {assets.length === 0 ? (

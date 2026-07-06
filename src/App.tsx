@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  Settings,
   Wallet,
   TrendingUp,
   Receipt,
@@ -10,6 +9,7 @@ import {
   Sun,
   Moon,
   Monitor,
+  Plus,
 } from 'lucide-react';
 import type {
   AppState,
@@ -40,9 +40,13 @@ import AddExpenseForm from './components/AddExpenseForm';
 import ExpenseList from './components/ExpenseList';
 import BudgetSettings from './components/BudgetSettings';
 import Modal from './components/Modal';
-import Toast from './components/Toast';
+import Toast, { type ToastAction } from './components/Toast';
 import InvestmentsView from './components/InvestmentsView';
 import DataModal from './components/DataModal';
+import YearNavigator from './components/YearNavigator';
+import YearView from './components/YearView';
+import CsvImportModal from './components/CsvImportModal';
+import CategoryPieChart, { type CategorySliceInput } from './components/CategoryPieChart';
 import {
   LanguageProvider,
   useT,
@@ -98,13 +102,19 @@ function AppInner({
   const t = useT();
   const { language, locale, setLanguage } = useLanguage();
   const [activeTab, setActiveTab] = useState<Tab>('expenses');
+  const [expensesView, setExpensesView] = useState<'month' | 'year'>('month');
   const [activeMonthId, setActiveMonthId] = useState<string>(() => currentMonthKey());
+  const [activeYear, setActiveYear] = useState<number>(() => new Date().getFullYear());
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [csvOpen, setCsvOpen] = useState(false);
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
   const [dataOpen, setDataOpen] = useState(false);
   const [currencyMenuOpen, setCurrencyMenuOpen] = useState(false);
   const [langMenuOpen, setLangMenuOpen] = useState(false);
   const [themeMenuOpen, setThemeMenuOpen] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; action?: ToastAction | null } | null>(
+    null
+  );
 
   useEffect(() => {
     setState((s) => ensureMonth(s, activeMonthId));
@@ -114,7 +124,6 @@ function AppInner({
     id: activeMonthId,
     year: parseInt(activeMonthId.split('-')[0]!, 10),
     month: parseInt(activeMonthId.split('-')[1]!, 10),
-    salary: 0,
     categories: [],
     expenses: [],
   };
@@ -123,7 +132,7 @@ function AppInner({
     const sorted = [...month.expenses].sort((a, b) => b.createdAt - a.createdAt);
     const ids: string[] = [];
     for (const e of sorted) {
-      if (!ids.includes(e.categoryId)) ids.push(e.categoryId);
+      if (e.categoryId && !ids.includes(e.categoryId)) ids.push(e.categoryId);
     }
     return ids;
   }, [month.expenses]);
@@ -139,9 +148,11 @@ function AppInner({
     });
   };
 
-  const showToast = (msg: string) => {
-    setToast(msg);
-    window.setTimeout(() => setToast(null), 2400);
+  const showToast = (msg: string, action?: ToastAction | null) => {
+    setToast({ message: msg, action: action ?? null });
+    // Undo toasts get a longer window so users can act on them.
+    const dwell = action ? 5000 : 2400;
+    window.setTimeout(() => setToast(null), dwell);
   };
 
   const monthWord = (n: number) => (n === 1 ? t('common.month') : t('common.months'));
@@ -158,7 +169,9 @@ function AppInner({
     }
 
     const recurringId = uid();
-    const category = month.categories.find((c) => c.id === expense.categoryId);
+    const category = expense.categoryId
+      ? month.categories.find((c) => c.id === expense.categoryId)
+      : undefined;
     const [, , dayStr] = expense.date.split('-');
     const dayOfMonth = parseInt(dayStr, 10);
     const endMonthId =
@@ -175,6 +188,7 @@ function AppInner({
       dayOfMonth,
       startMonthId: activeMonthId,
       endMonthId,
+      kind: expense.kind,
     };
 
     const firstInstance: Expense = { ...expense, recurringId };
@@ -201,8 +215,39 @@ function AppInner({
     );
   };
 
-  const handleDeleteExpense = (expenseId: string) => {
-    updateMonth((m) => ({ expenses: m.expenses.filter((e) => e.id !== expenseId) }));
+  const handleDeleteExpense = (expenseId: string, monthId: string) => {
+    const sourceMonth = state.months[monthId];
+    const removed = sourceMonth?.expenses.find((e) => e.id === expenseId);
+    setState((s) => {
+      const m = s.months[monthId];
+      if (!m) return s;
+      return {
+        ...s,
+        months: {
+          ...s.months,
+          [monthId]: { ...m, expenses: m.expenses.filter((e) => e.id !== expenseId) },
+        },
+      };
+    });
+    if (removed) {
+      showToast(t('toast.deleted'), {
+        label: t('toast.undo'),
+        onClick: () => {
+          setState((s) => {
+            const m = s.months[monthId];
+            if (!m) return s;
+            return {
+              ...s,
+              months: {
+                ...s.months,
+                [monthId]: { ...m, expenses: [...m.expenses, removed] },
+              },
+            };
+          });
+          setToast(null);
+        },
+      });
+    }
   };
 
   const handleStopRecurring = (recurringId: string) => {
@@ -210,8 +255,23 @@ function AppInner({
     showToast(t('toast.stoppedRecurring'));
   };
 
+  const handleImportExpenses = (monthId: string, expenses: Expense[]) => {
+    setState((s) => {
+      const target = s.months[monthId] ?? ensureMonth(s, monthId).months[monthId];
+      return {
+        ...s,
+        months: {
+          ...s.months,
+          [monthId]: {
+            ...target,
+            expenses: [...target.expenses, ...expenses],
+          },
+        },
+      };
+    });
+  };
+
   const handleSaveSettings = (patch: {
-    salary: number;
     categories: Category[];
     applyToFuture: boolean;
   }) => {
@@ -221,16 +281,11 @@ function AppInner({
         ...s,
         months: {
           ...s.months,
-          [activeMonthId]: { ...current, salary: patch.salary, categories: patch.categories },
+          [activeMonthId]: { ...current, categories: patch.categories },
         },
       };
       if (!patch.applyToFuture) return withCurrent;
-      return applyBudgetsToFutureMonths(
-        withCurrent,
-        activeMonthId,
-        patch.salary,
-        patch.categories
-      );
+      return applyBudgetsToFutureMonths(withCurrent, activeMonthId, patch.categories);
     });
     setSettingsOpen(false);
     const count = futureMonthCount(state, activeMonthId);
@@ -282,7 +337,17 @@ function AppInner({
   };
 
   const handleDeleteAssetEntry = (id: string) => {
+    const removed = state.assetEntries.find((e) => e.id === id);
     setState((s) => ({ ...s, assetEntries: s.assetEntries.filter((e) => e.id !== id) }));
+    if (removed) {
+      showToast(t('toast.deleted'), {
+        label: t('toast.undo'),
+        onClick: () => {
+          setState((s) => ({ ...s, assetEntries: [...s.assetEntries, removed] }));
+          setToast(null);
+        },
+      });
+    }
   };
 
   const handleUpdateConversionRate = (currency: CurrencyCode, rate: number) => {
@@ -290,6 +355,25 @@ function AppInner({
       ...s,
       conversionRates: { ...s.conversionRates, [currency]: rate },
     }));
+  };
+
+  const handleBulkUpdateConversionRates = (
+    rates: Partial<Record<CurrencyCode, number>>
+  ) => {
+    setState((s) => ({
+      ...s,
+      conversionRates: { ...s.conversionRates, ...rates },
+      fxRatesUpdatedAt: new Date().toISOString(),
+    }));
+  };
+
+  const handleSaveGoal = (goal: import('./types').SavingsGoal) => {
+    setState((s) => ({ ...s, savingsGoal: goal }));
+    showToast(t('toast.goalSaved'));
+  };
+
+  const handleDeleteGoal = () => {
+    setState((s) => ({ ...s, savingsGoal: undefined }));
   };
 
   return (
@@ -437,41 +521,85 @@ function AppInner({
         {activeTab === 'expenses' ? (
           <div className="space-y-4 sm:space-y-6">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <MonthNavigator
-                monthId={activeMonthId}
-                onPrev={() => setActiveMonthId((k) => shiftMonth(k, -1))}
-                onNext={() => setActiveMonthId((k) => shiftMonth(k, 1))}
-                onJumpToday={() => setActiveMonthId(currentMonthKey())}
-              />
-              <button className="btn-secondary !py-1.5" onClick={() => setSettingsOpen(true)}>
-                <Settings size={15} />
-                <span className="hidden sm:inline">{t('budget.settingsButton')}</span>
-              </button>
+              <div className="flex items-center gap-3 flex-wrap">
+                {expensesView === 'month' ? (
+                  <MonthNavigator
+                    monthId={activeMonthId}
+                    onPrev={() => setActiveMonthId((k) => shiftMonth(k, -1))}
+                    onNext={() => setActiveMonthId((k) => shiftMonth(k, 1))}
+                    onJumpToday={() => setActiveMonthId(currentMonthKey())}
+                  />
+                ) : (
+                  <YearNavigator
+                    year={activeYear}
+                    onPrev={() => setActiveYear((y) => y - 1)}
+                    onNext={() => setActiveYear((y) => y + 1)}
+                    onJumpToday={() => setActiveYear(new Date().getFullYear())}
+                  />
+                )}
+                <div className="flex items-center gap-0.5 p-0.5 rounded-lg bg-surface-overlay border border-surface-border">
+                  <button
+                    onClick={() => setExpensesView('month')}
+                    className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
+                      expensesView === 'month'
+                        ? 'bg-accent text-white'
+                        : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                    }`}
+                  >
+                    {t('view.month')}
+                  </button>
+                  <button
+                    onClick={() => setExpensesView('year')}
+                    className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
+                      expensesView === 'year'
+                        ? 'bg-accent text-white'
+                        : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                    }`}
+                  >
+                    {t('view.year')}
+                  </button>
+                </div>
+              </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-              <BudgetOverview month={month} currency={state.currency} />
-              <CategoryBreakdown
-                month={month}
-                currency={state.currency}
-                onOpenSettings={() => setSettingsOpen(true)}
-              />
-            </div>
+            {expensesView === 'month' ? (
+              <>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+                  <BudgetOverview month={month} currency={state.currency} />
+                  <CategoryBreakdown
+                    month={month}
+                    previousMonth={state.months[shiftMonth(activeMonthId, -1)]}
+                    currency={state.currency}
+                    onOpenSettings={() => setSettingsOpen(true)}
+                  />
+                </div>
 
-            <AddExpenseForm
-              month={month}
-              currency={state.currency}
-              onAdd={handleAddExpense}
-              recentCategoryIds={recentCategoryIds}
-            />
+                <CategoryPieChart
+                  slices={buildMonthlySlices(month)}
+                  currency={state.currency}
+                  title={t('pie.title')}
+                  subtitle={t('pie.subtitle')}
+                />
 
-            <ExpenseList
-              month={month}
-              currency={state.currency}
-              recurring={state.recurringExpenses}
-              onDelete={handleDeleteExpense}
-              onStopRecurring={handleStopRecurring}
-            />
+                <AddExpenseForm
+                  month={month}
+                  currency={state.currency}
+                  onAdd={handleAddExpense}
+                  recentCategoryIds={recentCategoryIds}
+                />
+
+                <ExpenseList
+                  month={month}
+                  allMonths={state.months}
+                  currency={state.currency}
+                  recurring={state.recurringExpenses}
+                  onDelete={handleDeleteExpense}
+                  onStopRecurring={handleStopRecurring}
+                />
+              </>
+            ) : (
+              <YearView year={activeYear} months={state.months} currency={state.currency} />
+            )}
           </div>
         ) : (
           <InvestmentsView
@@ -479,11 +607,17 @@ function AppInner({
             entries={state.assetEntries}
             currency={state.currency}
             conversionRates={state.conversionRates}
+            fxRatesUpdatedAt={state.fxRatesUpdatedAt}
+            savingsGoal={state.savingsGoal}
             onSaveAsset={handleSaveAsset}
             onDeleteAsset={handleDeleteAsset}
             onAddEntry={handleAddAssetEntry}
             onDeleteEntry={handleDeleteAssetEntry}
             onUpdateConversionRate={handleUpdateConversionRate}
+            onBulkUpdateConversionRates={handleBulkUpdateConversionRates}
+            onSaveGoal={handleSaveGoal}
+            onDeleteGoal={handleDeleteGoal}
+            onToast={(msg) => showToast(msg)}
           />
         )}
 
@@ -527,14 +661,72 @@ function AppInner({
           state={state}
           onImport={(imported) => setState(imported)}
           onReset={() => window.location.reload()}
-          onToast={showToast}
+          onOpenCsvImport={() => setCsvOpen(true)}
+          onToast={(msg) => showToast(msg)}
           onClose={() => setDataOpen(false)}
         />
       </Modal>
 
-      <Toast message={toast} />
+      <Modal
+        open={csvOpen}
+        onClose={() => setCsvOpen(false)}
+        title={t('csv.title')}
+        size="lg"
+      >
+        <CsvImportModal
+          currentMonth={month}
+          currency={state.currency}
+          onImport={handleImportExpenses}
+          onToast={(msg) => showToast(msg)}
+          onClose={() => setCsvOpen(false)}
+        />
+      </Modal>
+
+      {activeTab === 'expenses' && (
+        <button
+          onClick={() => setQuickAddOpen(true)}
+          aria-label={t('addExpense.title')}
+          title={t('addExpense.title')}
+          className="fixed bottom-5 right-5 sm:bottom-6 sm:right-6 z-40 w-14 h-14 rounded-full bg-accent text-white shadow-soft hover:bg-accent-soft transition-colors flex items-center justify-center"
+          style={{ boxShadow: '0 6px 20px -4px rgba(124, 92, 255, 0.45)' }}
+        >
+          <Plus size={26} strokeWidth={2.5} />
+        </button>
+      )}
+
+      <Modal
+        open={quickAddOpen}
+        onClose={() => setQuickAddOpen(false)}
+        title={t('addExpense.title')}
+        size="lg"
+      >
+        <AddExpenseForm
+          month={month}
+          currency={state.currency}
+          onAdd={handleAddExpense}
+          recentCategoryIds={recentCategoryIds}
+          bare
+          onAfterAdd={() => setQuickAddOpen(false)}
+        />
+      </Modal>
+
+      <Toast message={toast?.message ?? null} action={toast?.action ?? null} />
     </div>
   );
+}
+
+/** Group a month's expense entries by category for the pie chart. */
+function buildMonthlySlices(month: Month): CategorySliceInput[] {
+  const byCat = new Map<string, CategorySliceInput>();
+  for (const c of month.categories) {
+    byCat.set(c.id, { id: c.id, name: c.name, color: c.color, expenses: [] });
+  }
+  for (const e of month.expenses) {
+    if (e.kind === 'income' || !e.categoryId) continue;
+    const bucket = byCat.get(e.categoryId);
+    if (bucket) bucket.expenses.push(e);
+  }
+  return Array.from(byCat.values());
 }
 
 function TabButton({

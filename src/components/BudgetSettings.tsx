@@ -8,16 +8,11 @@ interface Props {
   month: Month;
   currency: CurrencyCode;
   futureMonthCount: number;
-  onSave: (patch: {
-    salary: number;
-    categories: Category[];
-    applyToFuture: boolean;
-  }) => void;
+  onSave: (patch: { categories: Category[]; applyToFuture: boolean }) => void;
   onClose: () => void;
 }
 
 interface Draft {
-  salary: string;
   categories: Array<Category & { budgetStr: string }>;
 }
 
@@ -33,18 +28,16 @@ export default function BudgetSettings({
   const fmt = (n: number) => formatCurrency(n, currency, { locale });
 
   const [draft, setDraft] = useState<Draft>(() => ({
-    salary: String(month.salary),
     categories: month.categories.map((c) => ({ ...c, budgetStr: String(c.budget) })),
   }));
   const [applyToFuture, setApplyToFuture] = useState(false);
 
   useEffect(() => {
     setDraft({
-      salary: String(month.salary),
       categories: month.categories.map((c) => ({ ...c, budgetStr: String(c.budget) })),
     });
     setApplyToFuture(false);
-  }, [month.id, month.salary, month.categories]);
+  }, [month.id, month.categories]);
 
   const setCat = (id: string, patch: Partial<Category & { budgetStr: string }>) => {
     setDraft((d) => ({
@@ -77,7 +70,6 @@ export default function BudgetSettings({
     setDraft((d) => ({ ...d, categories: d.categories.filter((c) => c.id !== id) }));
   };
 
-  const parsedSalary = Number.parseFloat(draft.salary.replace(',', '.')) || 0;
   const parsedCategories: Category[] = useMemo(
     () =>
       draft.categories.map((c) => ({
@@ -90,56 +82,17 @@ export default function BudgetSettings({
   );
 
   const totalBudget = sum(parsedCategories.map((c) => c.budget));
-  const overAllocated = totalBudget > parsedSalary && parsedSalary > 0;
   const monthWord = (n: number) => (n === 1 ? t('common.month') : t('common.months'));
 
   return (
     <div>
       <div className="space-y-5">
         <div>
-          <label className="label">{t('budgetSettings.monthlySalary')}</label>
-          <div className="relative max-w-xs">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600 dark:text-slate-400 text-sm pointer-events-none">
-              {currencySymbol(currency)}
-            </span>
-            <input
-              type="number"
-              inputMode="decimal"
-              step="0.01"
-              min="0"
-              className="input pl-7 tabular-nums text-base"
-              value={draft.salary}
-              onChange={(e) => setDraft((d) => ({ ...d, salary: e.target.value }))}
-              autoFocus
-            />
-          </div>
-          <p className="text-xs text-slate-500 mt-2">{t('budgetSettings.salaryHint')}</p>
-        </div>
-
-        <div className="divider" />
-
-        <div>
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
             <div>
               <div className="label !mb-0">{t('budgetSettings.categoriesTitle')}</div>
               <p className="text-xs text-slate-500 mt-1">
-                <span
-                  className={`tabular-nums ${
-                    overAllocated ? 'text-amber-400' : 'text-slate-700 dark:text-slate-300'
-                  }`}
-                >
-                  {t('budgetSettings.allocated', {
-                    amount: fmt(totalBudget),
-                    of: fmt(parsedSalary),
-                  })}
-                </span>
-                {overAllocated && (
-                  <span className="text-amber-400 ml-2">
-                    {t('budgetSettings.overAllocated', {
-                      amount: fmt(totalBudget - parsedSalary),
-                    })}
-                  </span>
-                )}
+                {t('budgetSettings.allocatedTotal', { amount: fmt(totalBudget) })}
               </p>
             </div>
             <button type="button" onClick={addCategory} className="btn-secondary text-xs">
@@ -235,11 +188,7 @@ export default function BudgetSettings({
           <button
             className="btn-primary"
             onClick={() => {
-              onSave({
-                salary: parsedSalary,
-                categories: parsedCategories,
-                applyToFuture,
-              });
+              onSave({ categories: parsedCategories, applyToFuture });
             }}
           >
             {t('common.saveChanges')}

@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
 import type { CurrencyCode } from '../types';
 import {
   formatCurrency,
@@ -29,13 +30,22 @@ interface Props {
 }
 
 const MOBILE_BREAKPOINT = 640;
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const MIN_VISIBLE_MS = 30 * MS_PER_DAY; // don't zoom in tighter than ~1 month
 
 export default function InvestmentChart({ series, currency, height = 340 }: Props) {
   const locale = useLocale();
   const t = useT();
+  const clipId = useId();
   const containerRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(720);
   const [hoverX, setHoverX] = useState<number | null>(null);
+  // Zoom range in ms; null = full domain.
+  const [zoom, setZoom] = useState<[number, number] | null>(null);
+  // Brush-select state during a drag.
+  const [drag, setDrag] = useState<{ startX: number; currentX: number } | null>(null);
+  // Minimum pixel drag to count as a brush zoom (below this, it's just a click/hover).
+  const DRAG_THRESHOLD = 12;
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -56,25 +66,35 @@ export default function InvestmentChart({ series, currency, height = 340 }: Prop
   const plotW = Math.max(1, width - PADDING.left - PADDING.right);
   const plotH = Math.max(1, effectiveHeight - PADDING.top - PADDING.bottom);
 
-  // Compute domain across all series
-  const { xMin, xMax, yMin, yMax } = useMemo(() => {
+  // Full domain across all series
+  const { fullXMin, fullXMax, fullYMax } = useMemo(() => {
     const all = series.flatMap((s) => s.points);
-    if (all.length === 0) {
-      return { xMin: 0, xMax: 1, yMin: 0, yMax: 1 };
-    }
+    if (all.length === 0) return { fullXMin: 0, fullXMax: 1, fullYMax: 1 };
     const xs = all.map((p) => p.date.getTime());
     const ys = all.map((p) => p.value);
     const xMinRaw = Math.min(...xs);
     const xMaxRaw = Math.max(...xs);
-    const yMaxRaw = Math.max(...ys);
-    // Pad y a little at the top; anchor bottom at 0.
     return {
-      xMin: xMinRaw,
-      xMax: xMaxRaw === xMinRaw ? xMinRaw + 1 : xMaxRaw,
-      yMin: 0,
-      yMax: yMaxRaw > 0 ? yMaxRaw * 1.08 : 1,
+      fullXMin: xMinRaw,
+      fullXMax: xMaxRaw === xMinRaw ? xMinRaw + 1 : xMaxRaw,
+      fullYMax: Math.max(...ys),
     };
   }, [series]);
+
+  // Effective domain: zoom overrides x; y auto-scales to points visible in x range
+  const { xMin, xMax, yMin, yMax } = useMemo(() => {
+    const [zMin, zMax] = zoom ?? [fullXMin, fullXMax];
+    let visibleMax = 0;
+    for (const s of series) {
+      for (const p of s.points) {
+        const t = p.date.getTime();
+        if (t >= zMin && t <= zMax && p.value > visibleMax) visibleMax = p.value;
+      }
+    }
+    // If nothing falls into the zoom window (thin data), fall back to fullYMax to keep the axis sane
+    const yTop = visibleMax > 0 ? visibleMax * 1.08 : fullYMax > 0 ? fullYMax * 1.08 : 1;
+    return { xMin: zMin, xMax: zMax, yMin: 0, yMax: yTop };
+  }, [zoom, fullXMin, fullXMax, fullYMax, series]);
 
   const x = (t: number) => PADDING.left + ((t - xMin) / (xMax - xMin)) * plotW;
   const y = (v: number) => PADDING.top + (1 - (v - yMin) / (yMax - yMin)) * plotH;
@@ -105,9 +125,15 @@ export default function InvestmentChart({ series, currency, height = 340 }: Prop
     const perSeries = series
       .map((s) => {
         if (s.points.length === 0) return null;
-        let closest = s.points[0];
-        let bestDist = Math.abs(s.points[0].date.getTime() - tHover);
-        for (const p of s.points) {
+        // Only consider points within the visible range for nearest-neighbor
+        const visible = s.points.filter((p) => {
+          const t = p.date.getTime();
+          return t >= xMin && t <= xMax;
+        });
+        const pool = visible.length > 0 ? visible : s.points;
+        let closest = pool[0];
+        let bestDist = Math.abs(pool[0].date.getTime() - tHover);
+        for (const p of pool) {
           const d = Math.abs(p.date.getTime() - tHover);
           if (d < bestDist) {
             bestDist = d;
@@ -118,7 +144,6 @@ export default function InvestmentChart({ series, currency, height = 340 }: Prop
       })
       .filter(Boolean) as { series: ChartSeries; point: ChartPoint }[];
     if (perSeries.length === 0) return null;
-    // Snap the vertical guideline to the closest overall point across all series
     const closestOverall = perSeries.reduce((a, b) =>
       Math.abs(a.point.date.getTime() - tHover) < Math.abs(b.point.date.getTime() - tHover) ? a : b
     );
@@ -127,8 +152,96 @@ export default function InvestmentChart({ series, currency, height = 340 }: Prop
 
   const anySeriesHasPoints = series.some((s) => s.points.length > 0);
 
+  // Zoom controls
+  const zoomedIn = zoom !== null;
+  const currentSpan = xMax - xMin;
+  const canZoomIn = currentSpan / 2 >= MIN_VISIBLE_MS && anySeriesHasPoints;
+  const canZoomOut = zoomedIn;
+
+  const zoomIn = () => {
+    const mid = (xMin + xMax) / 2;
+    const q = currentSpan / 4;
+    const newMin = Math.max(fullXMin, mid - q);
+    const newMax = Math.min(fullXMax, mid + q);
+    if (newMax - newMin < MIN_VISIBLE_MS) return;
+    setZoom([newMin, newMax]);
+  };
+  const zoomOut = () => {
+    const mid = (xMin + xMax) / 2;
+    const newMin = Math.max(fullXMin, mid - currentSpan);
+    const newMax = Math.min(fullXMax, mid + currentSpan);
+    if (newMin <= fullXMin && newMax >= fullXMax) setZoom(null);
+    else setZoom([newMin, newMax]);
+  };
+  const resetZoom = () => setZoom(null);
+
+  /** Clamp an SVG x-coordinate to the plot area. */
+  const clampToPlot = (px: number) =>
+    Math.max(PADDING.left, Math.min(PADDING.left + plotW, px));
+
+  /** Convert an SVG x-coordinate to a time in ms using the current x scale. */
+  const xToTime = (px: number) =>
+    xMin + ((clampToPlot(px) - PADDING.left) / plotW) * (xMax - xMin);
+
+  const beginDrag = (px: number) => {
+    const clamped = clampToPlot(px);
+    setDrag({ startX: clamped, currentX: clamped });
+    setHoverX(clamped);
+  };
+  const updateDrag = (px: number) => {
+    const clamped = clampToPlot(px);
+    setHoverX(clamped);
+    setDrag((prev) => (prev ? { ...prev, currentX: clamped } : null));
+  };
+  const endDrag = () => {
+    if (drag) {
+      const dist = Math.abs(drag.currentX - drag.startX);
+      if (dist >= DRAG_THRESHOLD) {
+        const t1 = xToTime(drag.startX);
+        const t2 = xToTime(drag.currentX);
+        const [zMin, zMax] = t1 < t2 ? [t1, t2] : [t2, t1];
+        if (zMax - zMin >= MIN_VISIBLE_MS) setZoom([zMin, zMax]);
+      }
+    }
+    setDrag(null);
+  };
+
   return (
     <div ref={containerRef} className="relative w-full select-none">
+      {/* Zoom toolbar */}
+      {anySeriesHasPoints && (
+        <div className="absolute top-1 right-1 flex items-center gap-0.5 z-10">
+          <button
+            onClick={zoomIn}
+            disabled={!canZoomIn}
+            aria-label={t('chart.zoomIn')}
+            title={t('chart.zoomIn')}
+            className="btn-ghost !p-1.5 opacity-60 hover:opacity-100 disabled:opacity-25 disabled:cursor-not-allowed"
+          >
+            <ZoomIn size={13} />
+          </button>
+          <button
+            onClick={zoomOut}
+            disabled={!canZoomOut}
+            aria-label={t('chart.zoomOut')}
+            title={t('chart.zoomOut')}
+            className="btn-ghost !p-1.5 opacity-60 hover:opacity-100 disabled:opacity-25 disabled:cursor-not-allowed"
+          >
+            <ZoomOut size={13} />
+          </button>
+          {zoomedIn && (
+            <button
+              onClick={resetZoom}
+              aria-label={t('chart.resetZoom')}
+              title={t('chart.resetZoom')}
+              className="btn-ghost !p-1.5 opacity-60 hover:opacity-100"
+            >
+              <Maximize2 size={13} />
+            </button>
+          )}
+        </div>
+      )}
+
       {!anySeriesHasPoints ? (
         <div
           className="w-full flex items-center justify-center text-slate-500 text-sm"
@@ -140,22 +253,41 @@ export default function InvestmentChart({ series, currency, height = 340 }: Prop
         <svg
           width={width}
           height={effectiveHeight}
-          className="block touch-none"
+          className="block touch-none cursor-crosshair"
+          onMouseDown={(e) => {
+            const rect = e.currentTarget.getBoundingClientRect();
+            beginDrag(e.clientX - rect.left);
+          }}
           onMouseMove={(e) => {
             const rect = e.currentTarget.getBoundingClientRect();
-            setHoverX(e.clientX - rect.left);
+            const px = e.clientX - rect.left;
+            if (drag) updateDrag(px);
+            else setHoverX(px);
           }}
-          onMouseLeave={() => setHoverX(null)}
+          onMouseUp={endDrag}
+          onMouseLeave={() => {
+            setHoverX(null);
+            setDrag(null);
+          }}
           onTouchStart={(e) => {
             const rect = e.currentTarget.getBoundingClientRect();
-            setHoverX(e.touches[0].clientX - rect.left);
+            beginDrag(e.touches[0].clientX - rect.left);
           }}
           onTouchMove={(e) => {
             const rect = e.currentTarget.getBoundingClientRect();
-            setHoverX(e.touches[0].clientX - rect.left);
+            updateDrag(e.touches[0].clientX - rect.left);
           }}
-          onTouchEnd={() => setHoverX(null)}
+          onTouchEnd={() => {
+            endDrag();
+            setHoverX(null);
+          }}
         >
+          <defs>
+            <clipPath id={`plot-${clipId}`}>
+              <rect x={PADDING.left} y={PADDING.top} width={plotW} height={plotH} />
+            </clipPath>
+          </defs>
+
           {/* Y gridlines + labels */}
           {yTicks.map((t) => (
             <g key={`y-${t}`}>
@@ -201,62 +333,79 @@ export default function InvestmentChart({ series, currency, height = 340 }: Prop
             </g>
           ))}
 
-          {/* Series lines */}
-          {paths.map(({ key, d, s }) => (
-            <path
-              key={key}
-              d={d}
-              fill="none"
-              stroke={s.color}
-              strokeWidth={2}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeDasharray={s.dashed ? '6 5' : undefined}
-              opacity={s.dashed ? 0.9 : 1}
-            />
-          ))}
+          {/* Clipped plot content: paths + dots */}
+          <g clipPath={`url(#plot-${clipId})`}>
+            {paths.map(({ key, d, s }) => (
+              <path
+                key={key}
+                d={d}
+                fill="none"
+                stroke={s.color}
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeDasharray={s.dashed ? '6 5' : undefined}
+                opacity={s.dashed ? 0.9 : 1}
+              />
+            ))}
 
-          {/* Dots on actual */}
-          {series.map((s) =>
-            s.showDots
-              ? s.points.map((p, i) => (
+            {series.map((s) =>
+              s.showDots
+                ? s.points.map((p, i) => (
+                    <circle
+                      key={`${s.key}-dot-${i}`}
+                      cx={x(p.date.getTime())}
+                      cy={y(p.value)}
+                      r={3.5}
+                      fill="var(--chart-dot-inner)"
+                      stroke={s.color}
+                      strokeWidth={2}
+                    />
+                  ))
+                : null
+            )}
+
+            {/* Brush-select band while dragging */}
+            {drag && Math.abs(drag.currentX - drag.startX) >= 2 && (
+              <rect
+                x={Math.min(drag.startX, drag.currentX)}
+                y={PADDING.top}
+                width={Math.abs(drag.currentX - drag.startX)}
+                height={plotH}
+                fill="rgb(124, 92, 255)"
+                fillOpacity={0.15}
+                stroke="rgb(124, 92, 255)"
+                strokeOpacity={0.4}
+                strokeWidth={1}
+                pointerEvents="none"
+              />
+            )}
+
+            {/* Hover guideline + tooltip dots (clipped so they don't extend outside) */}
+            {hover && (
+              <>
+                <line
+                  x1={x(hover.guidelineDate.getTime())}
+                  x2={x(hover.guidelineDate.getTime())}
+                  y1={PADDING.top}
+                  y2={PADDING.top + plotH}
+                  stroke="var(--chart-guideline)"
+                  strokeDasharray="3 3"
+                />
+                {hover.perSeries.map((h) => (
                   <circle
-                    key={`${s.key}-dot-${i}`}
-                    cx={x(p.date.getTime())}
-                    cy={y(p.value)}
-                    r={3.5}
-                    fill="var(--chart-dot-inner)"
-                    stroke={s.color}
+                    key={`hover-${h.series.key}`}
+                    cx={x(h.point.date.getTime())}
+                    cy={y(h.point.value)}
+                    r={4.5}
+                    fill={h.series.color}
+                    stroke="var(--chart-dot-inner)"
                     strokeWidth={2}
                   />
-                ))
-              : null
-          )}
-
-          {/* Hover guideline + tooltip */}
-          {hover && (
-            <>
-              <line
-                x1={x(hover.guidelineDate.getTime())}
-                x2={x(hover.guidelineDate.getTime())}
-                y1={PADDING.top}
-                y2={PADDING.top + plotH}
-                stroke="var(--chart-guideline)"
-                strokeDasharray="3 3"
-              />
-              {hover.perSeries.map((h) => (
-                <circle
-                  key={`hover-${h.series.key}`}
-                  cx={x(h.point.date.getTime())}
-                  cy={y(h.point.value)}
-                  r={4.5}
-                  fill={h.series.color}
-                  stroke="var(--chart-dot-inner)"
-                  strokeWidth={2}
-                />
-              ))}
-            </>
-          )}
+                ))}
+              </>
+            )}
+          </g>
         </svg>
       )}
 
@@ -369,7 +518,7 @@ function timeTicks(start: Date, end: Date, targetCount: number): Date[] {
     cursor.setMonth(cursor.getMonth() + stepMonths);
   }
   // Always include the final endpoint
-  if (ticks[ticks.length - 1].getTime() < endT - 15 * 24 * 3600 * 1000) {
+  if (ticks[ticks.length - 1].getTime() < endT - 15 * MS_PER_DAY) {
     ticks.push(new Date(endT));
   }
   return ticks;

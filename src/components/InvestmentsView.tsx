@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Plus } from 'lucide-react';
-import type { Asset, AssetEntry, CurrencyCode } from '../types';
+import type { Asset, AssetEntry, CurrencyCode, SavingsGoal } from '../types';
 import PatrimonySummary from './PatrimonySummary';
 import AssetSection from './AssetSection';
 import AssetSettingsModal from './AssetSettingsModal';
+import GoalCard from './GoalCard';
+import GoalSettingsModal from './GoalSettingsModal';
+import FxRatesRefresh from './FxRatesRefresh';
 import Modal from './Modal';
 import { useT } from '../i18n';
 import { getAssetIcon } from './assetIcons';
@@ -13,11 +16,17 @@ interface Props {
   entries: AssetEntry[];
   currency: CurrencyCode;
   conversionRates: Partial<Record<CurrencyCode, number>>;
+  fxRatesUpdatedAt: string | undefined;
+  savingsGoal: SavingsGoal | undefined;
   onSaveAsset: (asset: Asset) => void;
   onDeleteAsset: (id: string) => void;
   onAddEntry: (entry: AssetEntry) => void;
   onDeleteEntry: (id: string) => void;
   onUpdateConversionRate: (currency: CurrencyCode, rate: number) => void;
+  onBulkUpdateConversionRates: (rates: Partial<Record<CurrencyCode, number>>) => void;
+  onSaveGoal: (goal: SavingsGoal) => void;
+  onDeleteGoal: () => void;
+  onToast: (msg: string) => void;
 }
 
 export default function InvestmentsView({
@@ -25,11 +34,17 @@ export default function InvestmentsView({
   entries,
   currency,
   conversionRates,
+  fxRatesUpdatedAt,
+  savingsGoal,
   onSaveAsset,
   onDeleteAsset,
   onAddEntry,
   onDeleteEntry,
   onUpdateConversionRate,
+  onBulkUpdateConversionRates,
+  onSaveGoal,
+  onDeleteGoal,
+  onToast,
 }: Props) {
   const t = useT();
   const [activeAssetId, setActiveAssetId] = useState<string | null>(
@@ -37,6 +52,12 @@ export default function InvestmentsView({
   );
   const [editingAsset, setEditingAsset] = useState<Asset | null>(null);
   const [creatingAsset, setCreatingAsset] = useState(false);
+  const [goalOpen, setGoalOpen] = useState(false);
+
+  const foreignCurrencies = useMemo(
+    () => Array.from(new Set(assets.map((a) => a.currency).filter((c) => c !== currency))),
+    [assets, currency]
+  );
 
   // Keep the active asset valid as the list changes
   useEffect(() => {
@@ -79,6 +100,18 @@ export default function InvestmentsView({
 
   return (
     <div className="space-y-4 sm:space-y-6">
+      {foreignCurrencies.length > 0 && (
+        <div className="flex justify-end">
+          <FxRatesRefresh
+            appCurrency={currency}
+            neededCurrencies={foreignCurrencies}
+            fxRatesUpdatedAt={fxRatesUpdatedAt}
+            onUpdate={onBulkUpdateConversionRates}
+            onToast={onToast}
+          />
+        </div>
+      )}
+
       <PatrimonySummary
         currency={currency}
         conversionRates={conversionRates}
@@ -88,6 +121,17 @@ export default function InvestmentsView({
         onSelectAsset={setActiveAssetId}
         onAddAsset={openAdd}
       />
+
+      {assets.length > 0 && (
+        <GoalCard
+          goal={savingsGoal}
+          assets={assets}
+          entries={entries}
+          currency={currency}
+          conversionRates={conversionRates}
+          onEdit={() => setGoalOpen(true)}
+        />
+      )}
 
       {assets.length > 0 && (
         <div className="flex items-center gap-1 p-1 rounded-xl bg-surface-overlay border border-surface-border max-w-full overflow-x-auto scrollbar-none"
@@ -159,6 +203,30 @@ export default function InvestmentsView({
             closeModal();
           }}
           onClose={closeModal}
+        />
+      </Modal>
+
+      <Modal
+        open={goalOpen}
+        onClose={() => setGoalOpen(false)}
+        title={savingsGoal ? t('goal.editButton') : t('goal.emptyTitle')}
+        size="md"
+      >
+        <GoalSettingsModal
+          currency={currency}
+          goal={savingsGoal}
+          assets={assets}
+          entries={entries}
+          conversionRates={conversionRates}
+          onSave={(g) => {
+            onSaveGoal(g);
+            setGoalOpen(false);
+          }}
+          onDelete={() => {
+            onDeleteGoal();
+            setGoalOpen(false);
+          }}
+          onClose={() => setGoalOpen(false)}
         />
       </Modal>
     </div>
