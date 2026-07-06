@@ -1,5 +1,5 @@
 import { ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
-import { formatMonthLong, currentMonthKey } from '../utils';
+import { formatMonthLong, formatMonthShort, currentMonthKey } from '../utils';
 import { useT, useLocale } from '../i18n';
 
 interface Props {
@@ -18,9 +18,10 @@ export default function MonthNavigator({ monthId, onPrev, onNext, onJumpToday }:
       <button className="btn-ghost !p-2 rounded-lg" onClick={onPrev} aria-label={t('monthNav.prev')}>
         <ChevronLeft size={18} />
       </button>
-      <div className="min-w-[180px] text-center">
-        <div className="text-lg font-semibold tracking-tight capitalize">
-          {formatMonthLong(monthId, locale)}
+      <div className="min-w-[120px] sm:min-w-[180px] text-center">
+        <div className="text-base sm:text-lg font-semibold tracking-tight capitalize whitespace-nowrap">
+          <span className="sm:hidden">{formatMonthShort(monthId, locale)}</span>
+          <span className="hidden sm:inline">{formatMonthLong(monthId, locale)}</span>
         </div>
         {!isCurrent && (
           <button

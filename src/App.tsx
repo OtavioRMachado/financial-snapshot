@@ -520,8 +520,8 @@ function AppInner({
       <main className="max-w-6xl mx-auto px-4 sm:px-6 py-4 sm:py-8">
         {activeTab === 'expenses' ? (
           <div className="space-y-4 sm:space-y-6">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center justify-between gap-2 sm:gap-3">
+              <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                 {expensesView === 'month' ? (
                   <MonthNavigator
                     monthId={activeMonthId}
