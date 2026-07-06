@@ -158,8 +158,8 @@ export default function AddExpenseForm({
       <div
         className={`grid grid-cols-1 gap-3 items-end ${
           kind === 'income'
-            ? 'md:grid-cols-[minmax(0,150px)_minmax(0,1fr)_minmax(0,150px)_auto]'
-            : 'md:grid-cols-[minmax(0,150px)_minmax(0,1fr)_minmax(0,180px)_minmax(0,150px)_auto]'
+            ? 'md:grid-cols-[minmax(0,120px)_minmax(0,1fr)_minmax(0,150px)]'
+            : 'md:grid-cols-[minmax(0,120px)_minmax(0,1fr)_minmax(0,160px)_minmax(0,150px)]'
         }`}
       >
         <div>
@@ -241,11 +241,13 @@ export default function AddExpenseForm({
             onChange={(e) => setDate(e.target.value)}
           />
         </div>
+      </div>
 
+      <div className="mt-3 flex md:justify-end">
         <button
           type="submit"
           disabled={!canSubmit}
-          className="btn-primary h-[38px] disabled:opacity-40 disabled:cursor-not-allowed"
+          className="btn-primary w-full md:w-auto disabled:opacity-40 disabled:cursor-not-allowed"
         >
           {t('addExpense.submit')}
           <CornerDownLeft size={14} />
