@@ -34,7 +34,7 @@ export default function Modal({ open, onClose, title, children, size = 'md' }: M
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fade-in"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -42,7 +42,7 @@ export default function Modal({ open, onClose, title, children, size = 'md' }: M
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
       <div
         ref={dialogRef}
-        className={`relative w-full ${sizeClass} card p-6 animate-slide-up`}
+        className={`relative w-full ${sizeClass} card p-5 sm:p-6 animate-slide-up rounded-b-none sm:rounded-2xl max-h-[92vh] overflow-y-auto`}
         role="dialog"
         aria-modal="true"
         aria-label={title}
@@ -50,11 +50,11 @@ export default function Modal({ open, onClose, title, children, size = 'md' }: M
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-lg font-semibold">{title}</h2>
           <button
-            className="btn-ghost !p-1.5 rounded-lg"
+            className="btn-ghost !p-2 rounded-lg"
             onClick={onClose}
             aria-label={t('common.close')}
           >
-            <X size={18} />
+            <X size={20} />
           </button>
         </div>
         {children}

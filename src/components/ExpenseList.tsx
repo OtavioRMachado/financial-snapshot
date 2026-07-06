@@ -69,7 +69,7 @@ export default function ExpenseList({
 
   return (
     <div className="card">
-      <div className="flex flex-wrap items-center justify-between gap-3 p-5 pb-3 border-b border-surface-border">
+      <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center sm:justify-between gap-3 p-4 sm:p-5 sm:pb-3 border-b border-surface-border">
         <div>
           <h3 className="text-sm font-semibold flex items-center gap-2">
             <Receipt size={16} className="text-slate-600 dark:text-slate-400" />
@@ -113,7 +113,7 @@ export default function ExpenseList({
       </div>
 
       {totalCount === 0 ? (
-        <div className="p-12 text-center text-slate-600 dark:text-slate-400">
+        <div className="p-8 sm:p-12 text-center text-slate-600 dark:text-slate-400">
           <Receipt size={32} className="mx-auto text-slate-400 dark:text-slate-600 mb-2" />
           <div className="font-medium text-slate-700 dark:text-slate-300">{t('expenseList.emptyTitle')}</div>
           <div className="text-sm mt-1">
@@ -185,7 +185,7 @@ export default function ExpenseList({
                         <div className="flex items-center gap-0.5">
                           {rec && (
                             <button
-                              className="btn-ghost !p-1.5 opacity-0 group-hover:opacity-100 text-slate-500 hover:!text-amber-400"
+                              className="btn-ghost !p-1.5 opacity-0 group-hover:opacity-100 row-action text-slate-500 hover:!text-amber-400"
                               onClick={() => {
                                 if (confirm(t('expenseList.stopConfirm'))) {
                                   onStopRecurring(rec.id);
@@ -198,7 +198,7 @@ export default function ExpenseList({
                             </button>
                           )}
                           <button
-                            className="btn-ghost !p-1.5 opacity-0 group-hover:opacity-100 text-slate-500 hover:!text-rose-400"
+                            className="btn-ghost !p-1.5 opacity-0 group-hover:opacity-100 row-action text-slate-500 hover:!text-rose-400"
                             onClick={() => onDelete(e.id)}
                             aria-label={t('common.delete')}
                             title={t('expenseList.deleteTitle')}

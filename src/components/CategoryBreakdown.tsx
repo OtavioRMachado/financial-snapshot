@@ -42,7 +42,7 @@ export default function CategoryBreakdown({ month, currency, onOpenSettings }: P
   const sorted = [...rows].sort((a, b) => b.pct - a.pct);
 
   return (
-    <div className="card p-6">
+    <div className="card p-4 sm:p-6">
       <div className="flex items-center justify-between mb-4">
         <div>
           <div className="text-xs uppercase tracking-wider text-slate-600 dark:text-slate-400 font-medium">

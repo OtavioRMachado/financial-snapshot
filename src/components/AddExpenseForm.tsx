@@ -92,7 +92,7 @@ export default function AddExpenseForm({ month, currency, onAdd, recentCategoryI
   };
 
   return (
-    <form onSubmit={submit} className="card p-5">
+    <form onSubmit={submit} className="card p-4 sm:p-5">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
           <Plus size={16} className="text-accent" />

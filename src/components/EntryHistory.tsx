@@ -90,7 +90,7 @@ export default function EntryHistory({
                 </div>
                 <div className="text-sm font-medium tabular-nums">{fmt(e.amount)}</div>
                 <button
-                  className="btn-ghost !p-1.5 opacity-0 group-hover:opacity-100 text-slate-500 hover:!text-rose-400"
+                  className="btn-ghost !p-1.5 opacity-0 group-hover:opacity-100 row-action text-slate-500 hover:!text-rose-400"
                   onClick={() => onDelete(e.id)}
                   aria-label={t('entryForm.deleteAria')}
                 >

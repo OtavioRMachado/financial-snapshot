@@ -170,7 +170,7 @@ export default function AssetSection({
   const isSnapshot = asset.type === 'snapshot';
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Header: asset name + settings */}
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-2 min-w-0">
@@ -196,9 +196,9 @@ export default function AssetSection({
 
       {/* Foreign currency rate control */}
       {isForeign && (
-        <div className="card p-4 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
-            <ArrowLeftRight size={15} className="text-slate-500" />
+        <div className="card p-4 flex flex-col md:flex-row md:flex-wrap md:items-center md:justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
+            <ArrowLeftRight size={15} className="text-slate-500 flex-shrink-0" />
             <span className="text-slate-600 dark:text-slate-400">
               {t('assets.rate.header', { from: asset.currency, to: appCurrency })}
             </span>
@@ -210,7 +210,7 @@ export default function AssetSection({
                 type="number"
                 step="0.0001"
                 min="0"
-                className="input !py-1 !pl-16 !pr-2 w-44 text-sm tabular-nums"
+                className="input !py-1 !pl-16 !pr-2 w-40 sm:w-44 text-sm tabular-nums"
                 value={conversionRate}
                 onChange={(e) => {
                   const v = Number.parseFloat(e.target.value.replace(',', '.'));
@@ -231,14 +231,14 @@ export default function AssetSection({
       )}
 
       {/* Summary + chart */}
-      <div className="card p-6">
+      <div className="card p-4 sm:p-6">
         {summary ? (
           <div className="flex flex-wrap items-end justify-between gap-4 mb-4">
             <div>
               <div className="text-xs uppercase tracking-wider text-slate-600 dark:text-slate-400 font-medium">
                 {isSnapshot ? t('assets.section.currentValue') : t('assets.section.totalRecorded')}
               </div>
-              <div className="text-3xl font-semibold tracking-tight mt-1">
+              <div className="text-2xl sm:text-3xl font-semibold tracking-tight mt-1">
                 {fmtAsset(summary.currentValue)}
               </div>
               {isForeign && (
@@ -273,7 +273,7 @@ export default function AssetSection({
                 <div className="text-xs uppercase tracking-wider text-slate-600 dark:text-slate-400 font-medium">
                   {t('assets.section.projectedIn', { years: asset.projection!.years })}
                 </div>
-                <div className="text-3xl font-semibold tracking-tight mt-1 text-emerald-400">
+                <div className="text-2xl sm:text-3xl font-semibold tracking-tight mt-1 text-emerald-400">
                   {fmtAsset(summary.projectedValue)}
                 </div>
                 <div className="text-xs text-slate-500 mt-1">
@@ -297,7 +297,7 @@ export default function AssetSection({
                   {t('assets.section.sinceFirst')}
                 </div>
                 <div
-                  className={`text-3xl font-semibold tracking-tight mt-1 ${
+                  className={`text-2xl sm:text-3xl font-semibold tracking-tight mt-1 ${
                     summary.change >= 0 ? 'text-emerald-400' : 'text-rose-400'
                   }`}
                 >

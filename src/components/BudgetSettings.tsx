@@ -157,7 +157,7 @@ export default function BudgetSettings({
               draft.categories.map((c) => (
                 <div
                   key={c.id}
-                  className="flex items-center gap-2 bg-surface-overlay/40 border border-surface-border rounded-xl p-2"
+                  className="flex flex-wrap items-center gap-2 bg-surface-overlay/40 border border-surface-border rounded-xl p-2"
                 >
                   <ColorPicker
                     color={c.color}
@@ -165,12 +165,12 @@ export default function BudgetSettings({
                     ariaLabel={t('budgetSettings.changeColorAria')}
                   />
                   <input
-                    className="input flex-1 !py-1.5"
+                    className="input flex-1 min-w-[140px] !py-1.5"
                     value={c.name}
                     onChange={(e) => setCat(c.id, { name: e.target.value })}
                     placeholder={t('budgetSettings.categoryNamePlaceholder')}
                   />
-                  <div className="relative w-32">
+                  <div className="relative w-28 sm:w-32">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600 dark:text-slate-400 text-sm pointer-events-none">
                       {currencySymbol(currency)}
                     </span>

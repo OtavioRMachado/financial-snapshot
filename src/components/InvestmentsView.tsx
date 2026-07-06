@@ -78,7 +78,7 @@ export default function InvestmentsView({
     : 0;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       <PatrimonySummary
         currency={currency}
         conversionRates={conversionRates}
@@ -90,7 +90,9 @@ export default function InvestmentsView({
       />
 
       {assets.length > 0 && (
-        <div className="flex items-center gap-1 p-1 rounded-xl bg-surface-overlay border border-surface-border w-fit flex-wrap max-w-full">
+        <div className="flex items-center gap-1 p-1 rounded-xl bg-surface-overlay border border-surface-border max-w-full overflow-x-auto scrollbar-none"
+          style={{ scrollbarWidth: 'none' }}
+        >
           {assets.map((a) => {
             const Icon = getAssetIcon(a.icon);
             const active = a.id === activeAssetId;
@@ -98,7 +100,7 @@ export default function InvestmentsView({
               <button
                 key={a.id}
                 onClick={() => setActiveAssetId(a.id)}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                className={`inline-flex flex-shrink-0 items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                   active
                     ? 'bg-accent text-white shadow-soft'
                     : 'text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-surface-border/60'
@@ -111,7 +113,7 @@ export default function InvestmentsView({
           })}
           <button
             onClick={openAdd}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-surface-border/60 transition-colors"
+            className="inline-flex flex-shrink-0 items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-surface-border/60 transition-colors"
             title={t('assets.addAsset')}
           >
             <Plus size={14} />

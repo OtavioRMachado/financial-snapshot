@@ -295,7 +295,7 @@ function AppInner({
   return (
     <div className="min-h-screen">
       <header className="sticky top-0 z-30 bg-surface/85 backdrop-blur border-b border-surface-border">
-        <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between gap-4">
+        <div className="max-w-6xl mx-auto px-3 sm:px-6 h-14 sm:h-16 flex items-center justify-between gap-2 sm:gap-4">
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-8 h-8 rounded-lg bg-accent/15 border border-accent/30 flex items-center justify-center flex-shrink-0">
               <Wallet size={16} className="text-accent" />
@@ -376,9 +376,10 @@ function AppInner({
                 className="btn-ghost !py-1.5 !px-2 text-xs flex items-center gap-1"
                 onClick={() => setLangMenuOpen((o) => !o)}
                 aria-label={t('app.language.chooseLabel')}
+                title={t('app.language.chooseLabel')}
               >
                 <Languages size={14} />
-                {LANGUAGE_LABELS[language].short}
+                <span className="hidden sm:inline">{LANGUAGE_LABELS[language].short}</span>
               </button>
               {langMenuOpen && (
                 <>
@@ -432,9 +433,9 @@ function AppInner({
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-6 py-8">
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-4 sm:py-8">
         {activeTab === 'expenses' ? (
-          <div className="space-y-6">
+          <div className="space-y-4 sm:space-y-6">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <MonthNavigator
                 monthId={activeMonthId}
@@ -448,7 +449,7 @@ function AppInner({
               </button>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
               <BudgetOverview month={month} currency={state.currency} />
               <CategoryBreakdown
                 month={month}

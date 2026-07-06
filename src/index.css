@@ -55,6 +55,9 @@
   body,
   #root {
     height: 100%;
+    /* Dynamic viewport height so Chrome's collapsing URL bar doesn't cut off
+       or leave whitespace on Android. Falls back to 100% on older browsers. */
+    min-height: 100dvh;
   }
 
   body {
@@ -131,9 +134,38 @@
   .divider {
     @apply h-px w-full bg-surface-border;
   }
+
+  /* On touch-primary devices (no fine pointer / no hover), reveal action buttons
+     that would otherwise wait for hover on desktop. Every row-level action
+     (delete, stop-recurrence) uses `.row-action` alongside the existing
+     `group-hover:opacity-100` classes so both worlds work. */
+  @media (hover: none), (pointer: coarse) {
+    .row-action {
+      opacity: 1 !important;
+    }
+  }
+
+  /* Minimum tap target for primary/secondary CTAs on touch — 48px per Material.
+     Row-level ghost buttons (delete, stop-recurring) keep their compact
+     padding but stay always-visible via `.row-action`. */
+  @media (pointer: coarse) {
+    .btn-primary,
+    .btn-secondary {
+      min-height: 44px;
+    }
+  }
 }
 
-/* Scrollbar */
+/* Hide scrollbars entirely on horizontal-scroll strips like the wealth sub-tab bar. */
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Default scrollbar */
 ::-webkit-scrollbar {
   width: 10px;
   height: 10px;

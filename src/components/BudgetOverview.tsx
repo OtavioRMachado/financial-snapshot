@@ -29,14 +29,14 @@ export default function BudgetOverview({ month, currency }: Props) {
   const fmt = (n: number) => formatCurrency(n, currency, { locale });
 
   return (
-    <div className="card p-6">
+    <div className="card p-4 sm:p-6">
       <div className="flex items-start justify-between gap-4 mb-4">
         <div>
           <div className="text-xs uppercase tracking-wider text-slate-600 dark:text-slate-400 font-medium">
             {t('budget.overview')}
           </div>
           <div className="mt-1 flex items-baseline gap-2">
-            <span className="text-3xl font-semibold tracking-tight">{fmt(spent)}</span>
+            <span className="text-2xl sm:text-3xl font-semibold tracking-tight">{fmt(spent)}</span>
             <span className="text-slate-600 dark:text-slate-400 text-sm">
               {t('common.of')} {fmt(budget)}
             </span>
@@ -47,7 +47,7 @@ export default function BudgetOverview({ month, currency }: Props) {
             {overBudget ? t('budget.overBy') : t('budget.remaining')}
           </div>
           <div
-            className={`mt-1 text-3xl font-semibold tracking-tight ${
+            className={`mt-1 text-2xl sm:text-3xl font-semibold tracking-tight ${
               overBudget
                 ? 'text-rose-400'
                 : remaining < budget * 0.1

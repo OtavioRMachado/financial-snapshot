@@ -28,7 +28,7 @@ interface Props {
   height?: number;
 }
 
-const PADDING = { top: 16, right: 24, bottom: 32, left: 64 };
+const MOBILE_BREAKPOINT = 640;
 
 export default function InvestmentChart({ series, currency, height = 340 }: Props) {
   const locale = useLocale();
@@ -47,8 +47,14 @@ export default function InvestmentChart({ series, currency, height = 340 }: Prop
     return () => ro.disconnect();
   }, []);
 
+  const isMobile = width < MOBILE_BREAKPOINT;
+  const effectiveHeight = isMobile ? Math.min(height, 240) : height;
+  const PADDING = isMobile
+    ? { top: 12, right: 12, bottom: 26, left: 46 }
+    : { top: 16, right: 24, bottom: 32, left: 64 };
+
   const plotW = Math.max(1, width - PADDING.left - PADDING.right);
-  const plotH = Math.max(1, height - PADDING.top - PADDING.bottom);
+  const plotH = Math.max(1, effectiveHeight - PADDING.top - PADDING.bottom);
 
   // Compute domain across all series
   const { xMin, xMax, yMin, yMax } = useMemo(() => {
@@ -73,8 +79,11 @@ export default function InvestmentChart({ series, currency, height = 340 }: Prop
   const x = (t: number) => PADDING.left + ((t - xMin) / (xMax - xMin)) * plotW;
   const y = (v: number) => PADDING.top + (1 - (v - yMin) / (yMax - yMin)) * plotH;
 
-  const yTicks = useMemo(() => niceTicks(yMin, yMax, 5), [yMin, yMax]);
-  const xTicks = useMemo(() => timeTicks(new Date(xMin), new Date(xMax), 6), [xMin, xMax]);
+  const yTicks = useMemo(() => niceTicks(yMin, yMax, isMobile ? 4 : 5), [yMin, yMax, isMobile]);
+  const xTicks = useMemo(
+    () => timeTicks(new Date(xMin), new Date(xMax), isMobile ? 4 : 6),
+    [xMin, xMax, isMobile]
+  );
 
   // Build path strings for each series
   const paths = useMemo(() => {
@@ -123,20 +132,29 @@ export default function InvestmentChart({ series, currency, height = 340 }: Prop
       {!anySeriesHasPoints ? (
         <div
           className="w-full flex items-center justify-center text-slate-500 text-sm"
-          style={{ height }}
+          style={{ height: effectiveHeight }}
         >
           {t('chart.emptyState')}
         </div>
       ) : (
         <svg
           width={width}
-          height={height}
-          className="block"
+          height={effectiveHeight}
+          className="block touch-none"
           onMouseMove={(e) => {
             const rect = e.currentTarget.getBoundingClientRect();
             setHoverX(e.clientX - rect.left);
           }}
           onMouseLeave={() => setHoverX(null)}
+          onTouchStart={(e) => {
+            const rect = e.currentTarget.getBoundingClientRect();
+            setHoverX(e.touches[0].clientX - rect.left);
+          }}
+          onTouchMove={(e) => {
+            const rect = e.currentTarget.getBoundingClientRect();
+            setHoverX(e.touches[0].clientX - rect.left);
+          }}
+          onTouchEnd={() => setHoverX(null)}
         >
           {/* Y gridlines + labels */}
           {yTicks.map((t) => (
@@ -245,10 +263,16 @@ export default function InvestmentChart({ series, currency, height = 340 }: Prop
       {/* Tooltip */}
       {hover && (
         <div
-          className="pointer-events-none absolute z-10 card p-3 text-xs shadow-soft min-w-[180px] animate-fade-in"
+          className={`pointer-events-none absolute z-10 card p-2.5 sm:p-3 text-xs shadow-soft animate-fade-in ${
+            isMobile ? 'min-w-[140px]' : 'min-w-[180px]'
+          }`}
           style={{
-            left: clampLeft(x(hover.guidelineDate.getTime()) + 12, width, 200),
-            top: 12,
+            left: clampLeft(
+              x(hover.guidelineDate.getTime()) + 12,
+              width,
+              isMobile ? 160 : 200
+            ),
+            top: 8,
           }}
         >
           <div className="text-slate-600 dark:text-slate-400 mb-1.5 font-medium">

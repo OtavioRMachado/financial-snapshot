@@ -58,7 +58,7 @@ export default function DataModal({ state, onImport, onReset, onToast, onClose }
   return (
     <div className="space-y-6">
       {/* Current data summary */}
-      <div className="rounded-xl bg-surface-overlay/40 border border-surface-border p-4">
+      <div className="rounded-xl bg-surface-overlay/40 border border-surface-border p-3 sm:p-4">
         <div className="text-xs uppercase tracking-wider text-slate-600 dark:text-slate-400 font-medium mb-2 flex items-center gap-1.5">
           <Info size={12} />
           {t('data.currentSummary')}

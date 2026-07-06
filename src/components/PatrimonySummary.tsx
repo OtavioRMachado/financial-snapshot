@@ -56,25 +56,25 @@ export default function PatrimonySummary({
   const total = forecast.currentTotal;
 
   return (
-    <div className="card p-6">
-      <div className="flex items-end justify-between flex-wrap gap-6 mb-5">
+    <div className="card p-4 sm:p-6">
+      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between sm:flex-wrap gap-4 sm:gap-6 mb-5">
         <div>
           <div className="text-xs uppercase tracking-wider text-slate-600 dark:text-slate-400 font-medium">
             {t('wealth.totalPatrimony')}
           </div>
-          <div className="text-4xl font-semibold tracking-tight mt-1">{fmt(total)}</div>
+          <div className="text-3xl sm:text-4xl font-semibold tracking-tight mt-1">{fmt(total)}</div>
           {forecast.hasProjection && (
             <div className="text-xs text-slate-500 mt-1">{t('wealth.currentTotal')}</div>
           )}
         </div>
 
         {forecast.hasProjection && (
-          <div className="text-right">
-            <div className="text-xs uppercase tracking-wider text-slate-600 dark:text-slate-400 font-medium flex items-center gap-1.5 justify-end">
+          <div className="sm:text-right">
+            <div className="text-xs uppercase tracking-wider text-slate-600 dark:text-slate-400 font-medium flex items-center gap-1.5 sm:justify-end">
               <TrendingUp size={11} className="text-emerald-400" />
               {t('wealth.projectedIn', { years: forecast.horizonYears })}
             </div>
-            <div className="text-3xl font-semibold tracking-tight mt-1 text-emerald-400">
+            <div className="text-2xl sm:text-3xl font-semibold tracking-tight mt-1 text-emerald-400">
               {fmt(forecast.projectedTotal)}
             </div>
             <div className="text-xs text-slate-500 mt-1">
