@@ -182,7 +182,7 @@ export default function AddExpenseForm({
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               autoComplete="off"
-              autoFocus
+              autoFocus={bare}
             />
           </div>
         </div>

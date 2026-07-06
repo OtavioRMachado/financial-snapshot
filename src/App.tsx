@@ -743,14 +743,16 @@ function TabButton({
   return (
     <button
       onClick={onClick}
-      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+      aria-label={label}
+      title={label}
+      className={`inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
         active
           ? 'bg-accent text-white shadow-soft'
           : 'text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-surface-border/60'
       }`}
     >
       {icon}
-      {label}
+      <span className="hidden sm:inline">{label}</span>
     </button>
   );
 }
