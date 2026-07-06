@@ -6,6 +6,7 @@ import type {
   CurrencyCode,
   Expense,
   FireInputs,
+  Language,
   Month,
   RecurringExpense,
   SavingsGoal,
@@ -14,26 +15,53 @@ import { CATEGORY_PALETTE, currentMonthKey, monthKey, parseMonthKey, uid } from 
 
 const STORAGE_KEY = 'financial-tracker::v1';
 
-const DEFAULT_CATEGORIES: Omit<Category, 'id'>[] = [
-  { name: 'Housing', budget: 1200, color: CATEGORY_PALETTE[0] },
-  { name: 'Groceries', budget: 400, color: CATEGORY_PALETTE[1] },
-  { name: 'Dining', budget: 200, color: CATEGORY_PALETTE[2] },
-  { name: 'Transport', budget: 120, color: CATEGORY_PALETTE[7] },
-  { name: 'Utilities', budget: 150, color: CATEGORY_PALETTE[4] },
-  { name: 'Entertainment', budget: 100, color: CATEGORY_PALETTE[5] },
-  { name: 'Health', budget: 80, color: CATEGORY_PALETTE[8] },
-  { name: 'Shopping', budget: 150, color: CATEGORY_PALETTE[9] },
-  { name: 'Savings', budget: 500, color: CATEGORY_PALETTE[10] },
-  { name: 'Other', budget: 100, color: CATEGORY_PALETTE[11] },
-];
+/**
+ * Default categories used to seed a fresh install. Keyed by language so a
+ * Brazilian user who opens the app for the first time doesn't get English
+ * category names they'd have to rename.
+ */
+const DEFAULT_CATEGORIES_BY_LANG: Record<Language, Omit<Category, 'id'>[]> = {
+  en: [
+    { name: 'Housing', budget: 1200, color: CATEGORY_PALETTE[0] },
+    { name: 'Groceries', budget: 400, color: CATEGORY_PALETTE[1] },
+    { name: 'Dining', budget: 200, color: CATEGORY_PALETTE[2] },
+    { name: 'Transport', budget: 120, color: CATEGORY_PALETTE[7] },
+    { name: 'Utilities', budget: 150, color: CATEGORY_PALETTE[4] },
+    { name: 'Entertainment', budget: 100, color: CATEGORY_PALETTE[5] },
+    { name: 'Health', budget: 80, color: CATEGORY_PALETTE[8] },
+    { name: 'Shopping', budget: 150, color: CATEGORY_PALETTE[9] },
+    { name: 'Savings', budget: 500, color: CATEGORY_PALETTE[10] },
+    { name: 'Other', budget: 100, color: CATEGORY_PALETTE[11] },
+  ],
+  'pt-BR': [
+    { name: 'Moradia', budget: 1200, color: CATEGORY_PALETTE[0] },
+    { name: 'Mercado', budget: 400, color: CATEGORY_PALETTE[1] },
+    { name: 'Restaurantes', budget: 200, color: CATEGORY_PALETTE[2] },
+    { name: 'Transporte', budget: 120, color: CATEGORY_PALETTE[7] },
+    { name: 'Contas', budget: 150, color: CATEGORY_PALETTE[4] },
+    { name: 'Lazer', budget: 100, color: CATEGORY_PALETTE[5] },
+    { name: 'Saúde', budget: 80, color: CATEGORY_PALETTE[8] },
+    { name: 'Compras', budget: 150, color: CATEGORY_PALETTE[9] },
+    { name: 'Poupança', budget: 500, color: CATEGORY_PALETTE[10] },
+    { name: 'Outros', budget: 100, color: CATEGORY_PALETTE[11] },
+  ],
+};
 
-function seedMonth(key: string): Month {
+/** Best-effort detection of the browser's preferred language (en | pt-BR). */
+function detectBrowserLanguage(): Language {
+  if (typeof navigator === 'undefined') return 'en';
+  const raw = (navigator.language || navigator.languages?.[0] || 'en').toLowerCase();
+  return raw.startsWith('pt') ? 'pt-BR' : 'en';
+}
+
+function seedMonth(key: string, lang: Language = 'en'): Month {
   const { year, month } = parseMonthKey(key);
+  const defaults = DEFAULT_CATEGORIES_BY_LANG[lang] ?? DEFAULT_CATEGORIES_BY_LANG.en;
   return {
     id: key,
     year,
     month,
-    categories: DEFAULT_CATEGORIES.map((c) => ({ ...c, id: uid() })),
+    categories: defaults.map((c) => ({ ...c, id: uid() })),
     expenses: [],
   };
 }
@@ -73,11 +101,12 @@ function migrateSalaryToIncome(monthAny: Record<string, unknown>): Month {
 
 export function defaultState(): AppState {
   const curKey = currentMonthKey();
+  const language = detectBrowserLanguage();
   return {
-    language: 'en',
+    language,
     theme: 'auto',
     currency: 'EUR',
-    months: { [curKey]: seedMonth(curKey) },
+    months: { [curKey]: seedMonth(curKey, language) },
     recurringExpenses: [],
     assets: [],
     assetEntries: [],
@@ -212,7 +241,7 @@ export function deriveNextMonth(state: AppState, targetKey: string): Month {
     ? state.months[previousKeys[previousKeys.length - 1]]
     : undefined;
 
-  if (!prev) return seedMonth(targetKey);
+  if (!prev) return seedMonth(targetKey, state.language);
 
   return {
     id: targetKey,

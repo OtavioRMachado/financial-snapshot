@@ -58,6 +58,10 @@
     /* Dynamic viewport height so Chrome's collapsing URL bar doesn't cut off
        or leave whitespace on Android. Falls back to 100% on older browsers. */
     min-height: 100dvh;
+    /* Never allow horizontal overflow — otherwise Android Chrome sometimes
+       auto-scales the entire page to fit the widest content, which makes
+       the UI open zoomed out on first load. */
+    overflow-x: hidden;
   }
 
   body {

@@ -4,7 +4,7 @@
 // - Runtime: cache-first for own-origin GET requests; falls back to network.
 // - Because Vite builds hashed asset filenames, purging is by version bump.
 
-const CACHE_VERSION = 'v1';
+const CACHE_VERSION = 'v2';
 const CACHE_NAME = `financial-tracker-${CACHE_VERSION}`;
 
 self.addEventListener('install', (event) => {

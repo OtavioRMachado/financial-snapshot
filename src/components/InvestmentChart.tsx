@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
 import type { CurrencyCode } from '../types';
 import {
@@ -38,7 +38,10 @@ export default function InvestmentChart({ series, currency, height = 340 }: Prop
   const t = useT();
   const clipId = useId();
   const containerRef = useRef<HTMLDivElement>(null);
-  const [width, setWidth] = useState(720);
+  // Start at 0 so the SVG doesn't render at some guessed size and cause
+  // horizontal overflow on the initial paint (which on Android Chrome would
+  // trigger an auto-fit zoom-out of the whole page).
+  const [width, setWidth] = useState(0);
   const [hoverX, setHoverX] = useState<number | null>(null);
   // Zoom range in ms; null = full domain.
   const [zoom, setZoom] = useState<[number, number] | null>(null);
@@ -47,7 +50,10 @@ export default function InvestmentChart({ series, currency, height = 340 }: Prop
   // Minimum pixel drag to count as a brush zoom (below this, it's just a click/hover).
   const DRAG_THRESHOLD = 12;
 
-  useEffect(() => {
+  // Measure synchronously before paint so the SVG never renders with a bad
+  // width (which would cause horizontal overflow and mobile browsers to
+  // auto-scale the whole page).
+  useLayoutEffect(() => {
     if (!containerRef.current) return;
     const el = containerRef.current;
     const update = () => setWidth(el.clientWidth);
