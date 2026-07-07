@@ -14,6 +14,8 @@ interface Props {
   activeAssetId: string | null;
   onSelectAsset: (id: string) => void;
   onAddAsset: () => void;
+  /** Optional trailing action (e.g. FX refresh) shown in the card header. */
+  headerAction?: React.ReactNode;
 }
 
 /** Return the amount in the asset's own currency AND converted into the app currency. */
@@ -38,6 +40,7 @@ export default function PatrimonySummary({
   activeAssetId,
   onSelectAsset,
   onAddAsset,
+  headerAction,
 }: Props) {
   const t = useT();
   const locale = useLocale();
@@ -58,6 +61,9 @@ export default function PatrimonySummary({
 
   return (
     <div className="card p-4 sm:p-6">
+      {headerAction && (
+        <div className="flex justify-end -mt-1 mb-2">{headerAction}</div>
+      )}
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between sm:flex-wrap gap-4 sm:gap-6 mb-5">
         <div>
           <div className="text-xs uppercase tracking-wider text-slate-600 dark:text-slate-400 font-medium">

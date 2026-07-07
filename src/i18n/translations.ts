@@ -24,6 +24,9 @@ const en: Dict = {
   'app.theme.auto': 'System',
   'app.theme.light': 'Light',
   'app.theme.dark': 'Dark',
+  'app.settings.label': 'Settings',
+  'expenses.showBreakdown': 'Show breakdown',
+  'expenses.hideBreakdown': 'Hide breakdown',
 
   // Common
   'common.add': 'Add',
@@ -400,6 +403,9 @@ const pt: Dict = {
   'app.theme.auto': 'Sistema',
   'app.theme.light': 'Claro',
   'app.theme.dark': 'Escuro',
+  'app.settings.label': 'Preferências',
+  'expenses.showBreakdown': 'Mostrar detalhes',
+  'expenses.hideBreakdown': 'Ocultar detalhes',
 
   // Common
   'common.add': 'Adicionar',

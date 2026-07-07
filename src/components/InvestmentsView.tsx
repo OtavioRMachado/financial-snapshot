@@ -111,20 +111,19 @@ export default function InvestmentsView({
     ? entries.filter((e) => e.assetId === editingAsset.id).length
     : 0;
 
+  const fxRefresh =
+    foreignCurrencies.length > 0 ? (
+      <FxRatesRefresh
+        appCurrency={currency}
+        neededCurrencies={foreignCurrencies}
+        fxRatesUpdatedAt={fxRatesUpdatedAt}
+        onUpdate={onBulkUpdateConversionRates}
+        onToast={onToast}
+      />
+    ) : null;
+
   return (
     <div className="space-y-4 sm:space-y-6">
-      {foreignCurrencies.length > 0 && (
-        <div className="flex justify-end">
-          <FxRatesRefresh
-            appCurrency={currency}
-            neededCurrencies={foreignCurrencies}
-            fxRatesUpdatedAt={fxRatesUpdatedAt}
-            onUpdate={onBulkUpdateConversionRates}
-            onToast={onToast}
-          />
-        </div>
-      )}
-
       <PatrimonySummary
         currency={currency}
         conversionRates={conversionRates}
@@ -133,6 +132,7 @@ export default function InvestmentsView({
         activeAssetId={activeAssetId}
         onSelectAsset={setActiveAssetId}
         onAddAsset={openAdd}
+        headerAction={fxRefresh}
       />
 
       {assets.length > 0 && (
@@ -147,17 +147,24 @@ export default function InvestmentsView({
           />
         ) : (
           <div className="space-y-3 sm:space-y-4">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
+            <div
+              className="flex gap-3 overflow-x-auto snap-x snap-mandatory -mx-4 px-4 sm:mx-0 sm:px-0 lg:grid lg:grid-cols-2 lg:gap-4 lg:overflow-visible scrollbar-none"
+              style={{ scrollbarWidth: 'none' }}
+            >
               {savingsGoals.map((g) => (
-                <GoalCard
+                <div
                   key={g.id}
-                  goal={g}
-                  assets={assets}
-                  entries={entries}
-                  currency={currency}
-                  conversionRates={conversionRates}
-                  onEdit={() => setEditingGoalId(g.id)}
-                />
+                  className="snap-start flex-shrink-0 w-[88%] sm:w-[60%] lg:w-auto lg:flex-shrink"
+                >
+                  <GoalCard
+                    goal={g}
+                    assets={assets}
+                    entries={entries}
+                    currency={currency}
+                    conversionRates={conversionRates}
+                    onEdit={() => setEditingGoalId(g.id)}
+                  />
+                </div>
               ))}
             </div>
             <button

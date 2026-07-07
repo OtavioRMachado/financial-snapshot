@@ -3,13 +3,14 @@ import {
   Wallet,
   TrendingUp,
   Receipt,
-  Languages,
   Database,
   Coffee,
   Sun,
   Moon,
   Monitor,
   Plus,
+  Settings as SettingsIcon,
+  ChevronRight,
 } from 'lucide-react';
 import type {
   AppState,
@@ -112,8 +113,12 @@ function AppInner({
   const [quickAddOpen, setQuickAddOpen] = useState(false);
   const [dataOpen, setDataOpen] = useState(false);
   const [currencyMenuOpen, setCurrencyMenuOpen] = useState(false);
-  const [langMenuOpen, setLangMenuOpen] = useState(false);
-  const [themeMenuOpen, setThemeMenuOpen] = useState(false);
+  const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
+  const [showBreakdown, setShowBreakdown] = useState<boolean>(() =>
+    typeof window !== 'undefined'
+      ? window.matchMedia('(min-width: 1024px)').matches
+      : true
+  );
   const [toast, setToast] = useState<{ message: string; action?: ToastAction | null } | null>(
     null
   );
@@ -443,87 +448,6 @@ function AppInner({
           </div>
 
           <div className="flex items-center gap-1.5">
-            <button
-              className="btn-ghost !py-1.5 !px-2 text-xs flex items-center gap-1"
-              onClick={() => setDataOpen(true)}
-              aria-label={t('data.modal.title')}
-              title={t('data.modal.title')}
-            >
-              <Database size={14} />
-            </button>
-            <div className="relative">
-              <button
-                className="btn-ghost !py-1.5 !px-2 text-xs flex items-center gap-1"
-                onClick={() => setThemeMenuOpen((o) => !o)}
-                aria-label={t('app.theme.label')}
-                title={t('app.theme.label')}
-              >
-                {state.theme === 'dark' ? (
-                  <Moon size={14} />
-                ) : state.theme === 'light' ? (
-                  <Sun size={14} />
-                ) : (
-                  <Monitor size={14} />
-                )}
-              </button>
-              {themeMenuOpen && (
-                <>
-                  <div className="fixed inset-0 z-30" onClick={() => setThemeMenuOpen(false)} />
-                  <div className="absolute right-0 mt-2 w-40 z-40 card p-1">
-                    {(['auto', 'light', 'dark'] as Theme[]).map((th) => {
-                      const Icon = th === 'dark' ? Moon : th === 'light' ? Sun : Monitor;
-                      return (
-                        <button
-                          key={th}
-                          onClick={() => {
-                            setState((s) => ({ ...s, theme: th }));
-                            setThemeMenuOpen(false);
-                          }}
-                          className={`w-full flex items-center gap-2 text-left px-3 py-1.5 rounded-lg text-sm hover:bg-surface-overlay ${
-                            state.theme === th ? 'text-accent-soft' : ''
-                          }`}
-                        >
-                          <Icon size={14} />
-                          {t(`app.theme.${th}`)}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </>
-              )}
-            </div>
-            <div className="relative">
-              <button
-                className="btn-ghost !py-1.5 !px-2 text-xs flex items-center gap-1"
-                onClick={() => setLangMenuOpen((o) => !o)}
-                aria-label={t('app.language.chooseLabel')}
-                title={t('app.language.chooseLabel')}
-              >
-                <Languages size={14} />
-                <span className="hidden sm:inline">{LANGUAGE_LABELS[language].short}</span>
-              </button>
-              {langMenuOpen && (
-                <>
-                  <div className="fixed inset-0 z-30" onClick={() => setLangMenuOpen(false)} />
-                  <div className="absolute right-0 mt-2 w-40 z-40 card p-1">
-                    {(Object.keys(LANGUAGE_LABELS) as Language[]).map((l) => (
-                      <button
-                        key={l}
-                        onClick={() => {
-                          setLanguage(l);
-                          setLangMenuOpen(false);
-                        }}
-                        className={`w-full text-left px-3 py-1.5 rounded-lg text-sm hover:bg-surface-overlay ${
-                          language === l ? 'text-accent-soft' : ''
-                        }`}
-                      >
-                        {LANGUAGE_LABELS[l].full}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
             <div className="relative">
               <button
                 className="btn-ghost !py-1.5 text-xs uppercase tracking-wide"
@@ -546,6 +470,92 @@ function AppInner({
                         {c}
                       </button>
                     ))}
+                  </div>
+                </>
+              )}
+            </div>
+            <div className="relative">
+              <button
+                className="btn-ghost !py-1.5 !px-2 text-xs flex items-center gap-1"
+                onClick={() => setSettingsMenuOpen((o) => !o)}
+                aria-label={t('app.settings.label')}
+                title={t('app.settings.label')}
+              >
+                <SettingsIcon size={14} />
+              </button>
+              {settingsMenuOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-30"
+                    onClick={() => setSettingsMenuOpen(false)}
+                  />
+                  <div className="absolute right-0 mt-2 w-56 z-40 card p-2 space-y-2">
+                    <div>
+                      <div className="text-[10px] uppercase tracking-wider text-slate-500 px-2 pb-1">
+                        {t('app.theme.label')}
+                      </div>
+                      <div className="flex items-center gap-0.5 p-0.5 rounded-lg bg-surface-overlay border border-surface-border">
+                        {(['auto', 'light', 'dark'] as Theme[]).map((th) => {
+                          const Icon = th === 'dark' ? Moon : th === 'light' ? Sun : Monitor;
+                          const active = state.theme === th;
+                          return (
+                            <button
+                              key={th}
+                              onClick={() =>
+                                setState((s) => ({ ...s, theme: th }))
+                              }
+                              className={`flex-1 inline-flex items-center justify-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors ${
+                                active
+                                  ? 'bg-accent text-white'
+                                  : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                              }`}
+                              title={t(`app.theme.${th}`)}
+                            >
+                              <Icon size={13} />
+                              <span className="hidden sm:inline">
+                                {t(`app.theme.${th}`)}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] uppercase tracking-wider text-slate-500 px-2 pb-1">
+                        {t('app.language.chooseLabel')}
+                      </div>
+                      <div className="flex items-center gap-0.5 p-0.5 rounded-lg bg-surface-overlay border border-surface-border">
+                        {(Object.keys(LANGUAGE_LABELS) as Language[]).map((l) => {
+                          const active = language === l;
+                          return (
+                            <button
+                              key={l}
+                              onClick={() => setLanguage(l)}
+                              className={`flex-1 px-2 py-1 rounded text-xs font-medium transition-colors ${
+                                active
+                                  ? 'bg-accent text-white'
+                                  : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                              }`}
+                            >
+                              {LANGUAGE_LABELS[l].short}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setSettingsMenuOpen(false);
+                        setDataOpen(true);
+                      }}
+                      className="w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg text-sm hover:bg-surface-overlay"
+                    >
+                      <span className="inline-flex items-center gap-2">
+                        <Database size={14} />
+                        {t('data.modal.title')}
+                      </span>
+                      <ChevronRight size={13} className="text-slate-500" />
+                    </button>
                   </div>
                 </>
               )}
@@ -601,22 +611,42 @@ function AppInner({
 
             {expensesView === 'month' ? (
               <>
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+                <div className="flex flex-col gap-4 sm:gap-6 lg:grid lg:grid-cols-2">
                   <BudgetOverview month={month} currency={state.currency} />
-                  <CategoryBreakdown
-                    month={month}
-                    previousMonth={state.months[shiftMonth(activeMonthId, -1)]}
-                    currency={state.currency}
-                    onOpenSettings={() => setSettingsOpen(true)}
-                  />
+                  <div className="lg:hidden -my-1">
+                    <button
+                      type="button"
+                      onClick={() => setShowBreakdown((v) => !v)}
+                      className="btn-ghost inline-flex items-center gap-1.5 text-xs"
+                      aria-expanded={showBreakdown}
+                    >
+                      <ChevronRight
+                        size={13}
+                        className={`transition-transform ${showBreakdown ? 'rotate-90' : ''}`}
+                      />
+                      {showBreakdown
+                        ? t('expenses.hideBreakdown')
+                        : t('expenses.showBreakdown')}
+                    </button>
+                  </div>
+                  <div className={`${showBreakdown ? 'block' : 'hidden'} lg:block`}>
+                    <CategoryBreakdown
+                      month={month}
+                      previousMonth={state.months[shiftMonth(activeMonthId, -1)]}
+                      currency={state.currency}
+                      onOpenSettings={() => setSettingsOpen(true)}
+                    />
+                  </div>
                 </div>
 
-                <CategoryPieChart
-                  slices={buildMonthlySlices(month)}
-                  currency={state.currency}
-                  title={t('pie.title')}
-                  subtitle={t('pie.subtitle')}
-                />
+                <div className={`${showBreakdown ? 'block' : 'hidden'} lg:block`}>
+                  <CategoryPieChart
+                    slices={buildMonthlySlices(month)}
+                    currency={state.currency}
+                    title={t('pie.title')}
+                    subtitle={t('pie.subtitle')}
+                  />
+                </div>
 
                 <AddExpenseForm
                   month={month}
