@@ -116,7 +116,10 @@ export default function PatrimonySummary({
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+        <div
+          className="flex gap-3 overflow-x-auto snap-x snap-mandatory -mx-4 px-4 sm:mx-0 sm:px-0 sm:grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 sm:overflow-visible scrollbar-none"
+          style={{ scrollbarWidth: 'none' }}
+        >
           {perAsset.map(({ asset, native, inApp, count }) => {
             const pct = total > 0 ? (inApp / total) * 100 : 0;
             const isActive = asset.id === activeAssetId;
@@ -133,45 +136,51 @@ export default function PatrimonySummary({
                   : `${fmt(native, asset.currency)} · ${count}`;
 
             return (
-              <button
+              <div
                 key={asset.id}
-                onClick={() => onSelectAsset(asset.id)}
-                className={`text-left rounded-xl p-4 border transition-colors ${
-                  isActive
-                    ? 'bg-surface-overlay border-accent/50'
-                    : 'bg-surface-overlay/40 border-surface-border hover:bg-surface-overlay/70'
-                }`}
+                className="snap-start flex-shrink-0 w-[80%] sm:w-auto sm:flex-shrink flex"
               >
-                <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400 mb-1.5">
-                  <span
-                    className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0"
-                    style={{ backgroundColor: asset.color + '25', color: asset.color }}
-                  >
-                    <Icon size={12} />
-                  </span>
-                  <span className="font-medium truncate">{asset.name}</span>
-                </div>
-                <div className="text-lg font-semibold tabular-nums">{fmt(inApp)}</div>
-                <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500">
-                  <span className="truncate">{hint}</span>
-                  <span className="tabular-nums flex-shrink-0 ml-2">{pct.toFixed(0)}%</span>
-                </div>
-                <div className="mt-1.5 h-1 rounded-full bg-surface-border overflow-hidden">
-                  <div
-                    className="h-full rounded-full transition-[width] duration-500"
-                    style={{ width: `${pct}%`, backgroundColor: asset.color }}
-                  />
-                </div>
-              </button>
+                <button
+                  onClick={() => onSelectAsset(asset.id)}
+                  className={`w-full text-left rounded-xl p-4 border transition-colors ${
+                    isActive
+                      ? 'bg-surface-overlay border-accent/50'
+                      : 'bg-surface-overlay/40 border-surface-border hover:bg-surface-overlay/70'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400 mb-1.5">
+                    <span
+                      className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0"
+                      style={{ backgroundColor: asset.color + '25', color: asset.color }}
+                    >
+                      <Icon size={12} />
+                    </span>
+                    <span className="font-medium truncate">{asset.name}</span>
+                  </div>
+                  <div className="text-lg font-semibold tabular-nums">{fmt(inApp)}</div>
+                  <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500">
+                    <span className="truncate">{hint}</span>
+                    <span className="tabular-nums flex-shrink-0 ml-2">{pct.toFixed(0)}%</span>
+                  </div>
+                  <div className="mt-1.5 h-1 rounded-full bg-surface-border overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-[width] duration-500"
+                      style={{ width: `${pct}%`, backgroundColor: asset.color }}
+                    />
+                  </div>
+                </button>
+              </div>
             );
           })}
-          <button
-            onClick={onAddAsset}
-            className="rounded-xl p-4 border border-dashed border-surface-border text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:border-accent/40 transition-colors flex flex-col items-center justify-center gap-1"
-          >
-            <Plus size={16} />
-            <span className="text-xs font-medium">{t('assets.addAsset')}</span>
-          </button>
+          <div className="snap-start flex-shrink-0 w-[80%] sm:w-auto sm:flex-shrink flex">
+            <button
+              onClick={onAddAsset}
+              className="w-full rounded-xl p-4 border border-dashed border-surface-border text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:border-accent/40 transition-colors flex flex-col items-center justify-center gap-1"
+            >
+              <Plus size={16} />
+              <span className="text-xs font-medium">{t('assets.addAsset')}</span>
+            </button>
+          </div>
         </div>
       )}
     </div>

@@ -14,6 +14,10 @@ interface Props {
   includeNote?: boolean;
   hint?: ReactNode;
   onAdd: (entry: { date: string; amount: number; note?: string }) => void;
+  /** Render without the outer `.card` styling and inline header (for use inside a modal). */
+  bare?: boolean;
+  /** Called after a successful add — e.g. to close the modal wrapping this form. */
+  onAfterAdd?: () => void;
 }
 
 export default function AddEntryForm({
@@ -25,6 +29,8 @@ export default function AddEntryForm({
   includeNote = false,
   hint,
   onAdd,
+  bare = false,
+  onAfterAdd,
 }: Props) {
   const t = useT();
   const symbolCurrency = displayCurrency ?? currency;
@@ -48,17 +54,20 @@ export default function AddEntryForm({
     setAmount('');
     setNote('');
     // Keep date for quick successive entries.
+    onAfterAdd?.();
   };
 
   return (
-    <form onSubmit={submit} className="card p-5">
-      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-        <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-          <Plus size={16} className="text-accent" />
-          {title}
-        </h3>
-        {hint && <span className="text-xs text-slate-500">{hint}</span>}
-      </div>
+    <form onSubmit={submit} className={bare ? '' : 'card p-5'}>
+      {!bare && (
+        <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+          <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+            <Plus size={16} className="text-accent" />
+            {title}
+          </h3>
+          {hint && <span className="text-xs text-slate-500">{hint}</span>}
+        </div>
+      )}
       <div
         className={`grid grid-cols-1 gap-3 items-end ${
           includeNote
@@ -82,6 +91,7 @@ export default function AddEntryForm({
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               autoComplete="off"
+              autoFocus={bare}
             />
           </div>
         </div>

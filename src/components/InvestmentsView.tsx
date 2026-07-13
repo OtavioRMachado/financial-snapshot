@@ -4,11 +4,13 @@ import type { Asset, AssetEntry, CurrencyCode, SavingsGoal } from '../types';
 import PatrimonySummary from './PatrimonySummary';
 import AssetSection from './AssetSection';
 import AssetSettingsModal from './AssetSettingsModal';
+import AddEntryForm from './AddEntryForm';
 import GoalCard from './GoalCard';
 import GoalSettingsModal from './GoalSettingsModal';
 import FxRatesRefresh from './FxRatesRefresh';
 import Modal from './Modal';
 import { useT } from '../i18n';
+import { uid } from '../utils';
 import { getAssetIcon } from './assetIcons';
 
 interface Props {
@@ -52,6 +54,7 @@ export default function InvestmentsView({
   );
   const [editingAsset, setEditingAsset] = useState<Asset | null>(null);
   const [creatingAsset, setCreatingAsset] = useState(false);
+  const [quickEntryOpen, setQuickEntryOpen] = useState(false);
   /**
    * Which goal the modal is editing:
    *  - null: modal closed
@@ -279,6 +282,63 @@ export default function InvestmentsView({
           }}
           onClose={() => setEditingGoalId(null)}
         />
+      </Modal>
+
+      {activeAsset && (
+        <button
+          onClick={() => setQuickEntryOpen(true)}
+          aria-label={
+            activeAsset.type === 'snapshot'
+              ? t('assets.form.snapshot.title')
+              : t('assets.form.cumulative.title')
+          }
+          title={
+            activeAsset.type === 'snapshot'
+              ? t('assets.form.snapshot.title')
+              : t('assets.form.cumulative.title')
+          }
+          className="fixed bottom-5 right-5 sm:bottom-6 sm:right-6 z-40 w-14 h-14 rounded-full bg-accent text-white shadow-soft hover:bg-accent-soft transition-colors flex items-center justify-center"
+          style={{ boxShadow: '0 6px 20px -4px rgba(124, 92, 255, 0.45)' }}
+        >
+          <Plus size={26} strokeWidth={2.5} />
+        </button>
+      )}
+
+      <Modal
+        open={quickEntryOpen && activeAsset !== null}
+        onClose={() => setQuickEntryOpen(false)}
+        title={
+          activeAsset
+            ? activeAsset.type === 'snapshot'
+              ? t('assets.form.snapshot.title')
+              : t('assets.form.cumulative.title')
+            : ''
+        }
+        size="lg"
+      >
+        {activeAsset && (
+          <AddEntryForm
+            currency={currency}
+            displayCurrency={activeAsset.currency}
+            title=""
+            amountLabel={
+              activeAsset.type === 'snapshot'
+                ? t('assets.form.snapshot.amount')
+                : t('assets.form.cumulative.amount')
+            }
+            submitLabel={
+              activeAsset.type === 'snapshot'
+                ? t('assets.form.snapshot.submit')
+                : t('assets.form.cumulative.submit')
+            }
+            includeNote={activeAsset.type !== 'snapshot'}
+            onAdd={({ date, amount, note }) =>
+              onAddEntry({ id: uid(), assetId: activeAsset.id, date, amount, note })
+            }
+            bare
+            onAfterAdd={() => setQuickEntryOpen(false)}
+          />
+        )}
       </Modal>
     </div>
   );

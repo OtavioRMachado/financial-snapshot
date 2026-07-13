@@ -25,8 +25,12 @@ const en: Dict = {
   'app.theme.light': 'Light',
   'app.theme.dark': 'Dark',
   'app.settings.label': 'Settings',
-  'expenses.showBreakdown': 'Show breakdown',
-  'expenses.hideBreakdown': 'Hide breakdown',
+  'carousel.previous': 'Previous slide',
+  'carousel.next': 'Next slide',
+  'carousel.goToSlide': 'Go to {label}',
+  'expenses.slide.budget': 'Monthly budget',
+  'expenses.slide.categories': 'Categories',
+  'expenses.slide.pie': 'Spending share',
 
   // Common
   'common.add': 'Add',
@@ -404,8 +408,12 @@ const pt: Dict = {
   'app.theme.light': 'Claro',
   'app.theme.dark': 'Escuro',
   'app.settings.label': 'Preferências',
-  'expenses.showBreakdown': 'Mostrar detalhes',
-  'expenses.hideBreakdown': 'Ocultar detalhes',
+  'carousel.previous': 'Slide anterior',
+  'carousel.next': 'Próximo slide',
+  'carousel.goToSlide': 'Ir para {label}',
+  'expenses.slide.budget': 'Orçamento mensal',
+  'expenses.slide.categories': 'Categorias',
+  'expenses.slide.pie': 'Distribuição',
 
   // Common
   'common.add': 'Adicionar',

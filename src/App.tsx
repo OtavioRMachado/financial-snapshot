@@ -50,6 +50,7 @@ import YearNavigator from './components/YearNavigator';
 import YearView from './components/YearView';
 import CsvImportModal from './components/CsvImportModal';
 import CategoryPieChart, { type CategorySliceInput } from './components/CategoryPieChart';
+import Carousel, { type CarouselSlide } from './components/Carousel';
 import {
   LanguageProvider,
   useT,
@@ -114,11 +115,6 @@ function AppInner({
   const [dataOpen, setDataOpen] = useState(false);
   const [currencyMenuOpen, setCurrencyMenuOpen] = useState(false);
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
-  const [showBreakdown, setShowBreakdown] = useState<boolean>(() =>
-    typeof window !== 'undefined'
-      ? window.matchMedia('(min-width: 1024px)').matches
-      : true
-  );
   const [toast, setToast] = useState<{ message: string; action?: ToastAction | null } | null>(
     null
   );
@@ -611,42 +607,43 @@ function AppInner({
 
             {expensesView === 'month' ? (
               <>
-                <div className="flex flex-col gap-4 sm:gap-6 lg:grid lg:grid-cols-2">
-                  <BudgetOverview month={month} currency={state.currency} />
-                  <div className="lg:hidden -my-1">
-                    <button
-                      type="button"
-                      onClick={() => setShowBreakdown((v) => !v)}
-                      className="btn-ghost inline-flex items-center gap-1.5 text-xs"
-                      aria-expanded={showBreakdown}
-                    >
-                      <ChevronRight
-                        size={13}
-                        className={`transition-transform ${showBreakdown ? 'rotate-90' : ''}`}
-                      />
-                      {showBreakdown
-                        ? t('expenses.hideBreakdown')
-                        : t('expenses.showBreakdown')}
-                    </button>
-                  </div>
-                  <div className={`${showBreakdown ? 'block' : 'hidden'} lg:block`}>
-                    <CategoryBreakdown
-                      month={month}
-                      previousMonth={state.months[shiftMonth(activeMonthId, -1)]}
-                      currency={state.currency}
-                      onOpenSettings={() => setSettingsOpen(true)}
-                    />
-                  </div>
-                </div>
-
-                <div className={`${showBreakdown ? 'block' : 'hidden'} lg:block`}>
-                  <CategoryPieChart
-                    slices={buildMonthlySlices(month)}
-                    currency={state.currency}
-                    title={t('pie.title')}
-                    subtitle={t('pie.subtitle')}
-                  />
-                </div>
+                <Carousel
+                  slides={
+                    [
+                      {
+                        id: 'budget',
+                        label: t('expenses.slide.budget'),
+                        content: (
+                          <BudgetOverview month={month} currency={state.currency} />
+                        ),
+                      },
+                      {
+                        id: 'categories',
+                        label: t('expenses.slide.categories'),
+                        content: (
+                          <CategoryBreakdown
+                            month={month}
+                            previousMonth={state.months[shiftMonth(activeMonthId, -1)]}
+                            currency={state.currency}
+                            onOpenSettings={() => setSettingsOpen(true)}
+                          />
+                        ),
+                      },
+                      {
+                        id: 'pie',
+                        label: t('expenses.slide.pie'),
+                        content: (
+                          <CategoryPieChart
+                            slices={buildMonthlySlices(month)}
+                            currency={state.currency}
+                            title={t('pie.title')}
+                            subtitle={t('pie.subtitle')}
+                          />
+                        ),
+                      },
+                    ] satisfies CarouselSlide[]
+                  }
+                />
 
                 <AddExpenseForm
                   month={month}
